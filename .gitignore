@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Generated figures/CSVs: reproducible with generate_all_paper_figures.py
+output_plots/
+
+# Only the four parquet caches needed for the figures are tracked
+output_eval/*
+!output_eval/master_df_no_gemini2.parquet
+!output_eval/competitive_df_no_gemini2.parquet
+!output_eval/cl_features_no_gemini2.parquet
+!output_eval/cv_job_similarity.parquet
+
+# Data lives in ../data (outside the repo); local links into it
+raw_datasets
+dataset
+output_cl
+data/
+
+# Secrets / local config
+.env
+*.key
+config.yaml
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+.claude/settings.local.json

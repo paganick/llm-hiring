@@ -1,0 +1,30 @@
+# Environment used for the figure pipeline (tested 2026-11-04, conda env
+# "llm-bias-analysis"). Data-collection scripts additionally need the
+# packages in the second block.
+name: llm-hiring
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas=3.0.1
+  - numpy=2.4.2
+  - pyarrow=23.0.1
+  - matplotlib=3.10.8
+  - seaborn=0.13.2
+  - scipy=1.17.1
+  - scikit-learn=1.8.0
+  - statsmodels=0.14.6
+  - pip
+  - pip:
+      - adjustText
+      # --- data collection / feature extraction only ---
+      - openai
+      - anthropic
+      - google-genai
+      - ollama
+      - sentence-transformers
+      - transformers
+      - torch
+      - nltk
+      - textstat
+      - tqdm
