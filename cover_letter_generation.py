@@ -150,16 +150,21 @@ class CoverLetterWriter(Agent):
 # --- OpenAI Models ---
 gpt_4o_mini_writer_model = OpenAIModel("gpt-4o-mini")
 gpt_5_mini_writer_model = OpenAIModel("gpt-5-mini")
+gpt_5_writer_model = OpenAIModel("gpt-5")
 
 # --- Gemini Models ---
 #gemini_pro_writer_model = GeminiModel("gemini-3.1-pro-preview")
 gemini_3_flash_writer_model = GeminiModel("gemini-3-flash-preview")
+gemini_35_flash_writer_model = GeminiModel("gemini-3.5-flash")  # default thinking level
 
 # --- Other Models ---
 llama_writer_model = OllamaModel("llama3.1:latest")
 deep_local_writer_model = OllamaModel("deepseek-r1:latest")
+# "deepseek-chat" pointed to DeepSeek V3.2 at the time of the run
 deep_api_writer_model = DeepSeekAPIModel("deepseek-chat")
+deep_v4_flash_writer_model = DeepSeekAPIModel("deepseek-v4-flash")
 claude_writer_model = ClaudeModel("claude-haiku-4-5-20251001")
+claude_sonnet_writer_model = ClaudeModel("claude-sonnet-4-6")
 
 # --- Create Agents ---
 # Dictionary mapping: { "file_prefix": Agent_Instance }
@@ -167,7 +172,11 @@ writers = {
     "gemini-3-flash-preview_cover_letter":   CoverLetterWriter(gemini_3_flash_writer_model),
     "llama3.1-8b_cover_letter":         CoverLetterWriter(llama_writer_model),
     "deepseek-r1-8b_cover_letter":      CoverLetterWriter(deep_local_writer_model),
-    "deepseek-chat_cover_letter":    CoverLetterWriter(deep_api_writer_model),
+    "deepseek-v3.2_cover_letter":    CoverLetterWriter(deep_api_writer_model),
+    "deepseek-v4-flash_cover_letter":    CoverLetterWriter(deep_v4_flash_writer_model),
+    "gpt-5_cover_letter":            CoverLetterWriter(gpt_5_writer_model),
+    "gemini-3.5-flash_cover_letter":     CoverLetterWriter(gemini_35_flash_writer_model),
+    "claude-4.6-sonnet_cover_letter":    CoverLetterWriter(claude_sonnet_writer_model),
     "gpt-4o-mini_cover_letter":      CoverLetterWriter(gpt_4o_mini_writer_model),
     "gpt-5-mini_cover_letter":           CoverLetterWriter(gpt_5_mini_writer_model),
     "claude-haiku-4-5_cover_letter":     CoverLetterWriter(claude_writer_model)
