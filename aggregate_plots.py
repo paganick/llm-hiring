@@ -623,11 +623,9 @@ def plot_net_advantage_extreme_evaluators(comp_df, writers, evaluators, save_dir
     separate win-rate analysis excludes self-evaluation), rather than pooled
     across all 9 as in net_advantage_matrix_ALL_COMBINED.png /
     win_net_combined.png. Appendix companion surfacing the worst-case
-    single-evaluator numbers: the pooled matrix's headline (+7.3%, ~1.8/25)
-    is a cross-evaluator mean, and individual evaluators can go well beyond
-    it on specific pairings (GPT-4o mini and DeepSeek V3.2 both reach ~+13%,
-    ~3.2/25, chosen here as the two most extreme by peak cell and by summed
-    |net| across their whole matrix respectively).
+    single-evaluator numbers: the pooled matrix is a cross-evaluator mean,
+    and individual evaluators can go well beyond it on specific pairings.
+    main() passes the two evaluators with the highest single cell.
 
     Style matches win_net_combined's right panel exactly (same cmap, grey
     em-dash control diagonal, color-coded square y-ticks, no inline '%', no
@@ -2147,11 +2145,15 @@ def main():
         if not tier_df.empty:
             plot_win_net_combined(tier_df, delta, p_mat, rounded_raw, writers, OUT_DIR, std_matrix=std_mat)
 
-        # SI companion: the two most extreme INDIVIDUAL evaluators (pooled
-        # matrix above averages across all 9), by peak cell (GPT-4o mini)
-        # and by summed |net| across their whole matrix (DeepSeek V3.2).
-        plot_net_advantage_extreme_evaluators(
-            comp_df, writers, ("gpt-4o-mini", "deepseek-v3.2"), OUT_DIR)
+        # Appendix companion: the two individual evaluators with the highest
+        # single net-displacement cell (same rounding as the figure).
+        def _peak(e):
+            ctrl = {b: round(eval_dist[(b, b)][e], 1) for b in writers}
+            return max(round(eval_dist[(b, t)][e], 1) - ctrl[b]
+                       for b in writers for t in writers if b != t)
+        extreme = sorted(UNIQUE_EVALUATORS, key=_peak, reverse=True)[:2]
+        print("  Highest single cells: " + ", ".join(f"{e} {_peak(e):+.1f}" for e in extreme))
+        plot_net_advantage_extreme_evaluators(comp_df, writers, tuple(extreme), OUT_DIR)
     else:
         print("  Skipping net_advantage / win_net_combined (no competitive data).")
 
