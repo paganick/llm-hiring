@@ -36,6 +36,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from transformers import pipeline
 from tqdm import tqdm
 
+from aggregate_plots import RAW_WRITERS
+
 nltk.download("vader_lexicon", quiet=True)
 nltk.download("punkt",         quiet=True)
 nltk.download("punkt_tab",     quiet=True)
@@ -80,7 +82,7 @@ def _read_cv_texts() -> dict:
 
 
 def _read_cl_texts() -> dict:
-    """Return {(job_id, writer, cv_idx): text} for all cover letters."""
+    """Return {(job_id, writer, cv_idx): text} for the paper's 11 writers."""
     texts = {}
     for job_folder in sorted(os.listdir(CL_DIR)):
         job_dir = os.path.join(CL_DIR, job_folder)
@@ -91,7 +93,7 @@ def _read_cl_texts() -> dict:
             if not fname.endswith(".txt"):
                 continue
             m = re.match(r"(.+)_cover_letter_cv(\d+)\.txt", fname)
-            if not m:
+            if not m or m.group(1) not in RAW_WRITERS:
                 continue
             with open(os.path.join(job_dir, fname)) as f:
                 texts[(job_id, m.group(1), int(m.group(2)))] = f.read().strip()

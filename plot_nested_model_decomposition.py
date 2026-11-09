@@ -68,8 +68,8 @@ from aggregate_plots import (
 )
 from plot_feature_regression import FEATURES_PATH, STYLE_COLS, COSINE_COLS
 
-MASTER_PATH = "output_eval/master_df_no_gemini2.parquet"
-OUT_DIR     = "output_plots/cl_features_no_gemini2"
+MASTER_PATH = "output_eval/master_df.parquet"
+OUT_DIR     = "output_plots/cl_features"
 
 # Same left-to-right order convention as every other condition-split figure
 # in the paper (CV Only -> Cover Letter Only -> CV + Cover Letter).

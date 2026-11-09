@@ -37,8 +37,8 @@ from aggregate_plots import (
 sns.set_theme(style="whitegrid")
 plt.rcParams.update({"figure.max_open_warning": 0})
 
-IN_PATH = "output_eval/cl_features_no_gemini2.parquet"
-OUT_DIR = "output_plots/cl_features_no_gemini2"
+IN_PATH = "output_eval/cl_features.parquet"
+OUT_DIR = "output_plots/cl_features"
 fs      = plt.rcParams["font.size"]
 
 WRITERS = list(WRITER_COLORS)

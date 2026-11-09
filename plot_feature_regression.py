@@ -32,9 +32,9 @@ from aggregate_plots import (
 sns.set_theme(style="whitegrid")
 plt.rcParams.update({"figure.max_open_warning": 0})
 
-FEATURES_PATH = "output_eval/cl_features_no_gemini2.parquet"
-MASTER_PATH   = "output_eval/master_df_no_gemini2.parquet"
-OUT_DIR       = "output_plots/cl_features_no_gemini2"
+FEATURES_PATH = "output_eval/cl_features.parquet"
+MASTER_PATH   = "output_eval/master_df.parquet"
+OUT_DIR       = "output_plots/cl_features"
 fs            = plt.rcParams["font.size"]
 
 EVAL_TYPES = {

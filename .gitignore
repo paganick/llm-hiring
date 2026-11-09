@@ -8,9 +8,9 @@ output_plots/
 
 # Only the four parquet caches needed for the figures are tracked
 output_eval/*
-!output_eval/master_df_no_gemini2.parquet
-!output_eval/competitive_df_no_gemini2.parquet
-!output_eval/cl_features_no_gemini2.parquet
+!output_eval/master_df.parquet
+!output_eval/competitive_df.parquet
+!output_eval/cl_features.parquet
 !output_eval/cv_job_similarity.parquet
 
 # Data lives in ../data (outside the repo); local links into it

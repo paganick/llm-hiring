@@ -16,7 +16,7 @@ dependencies:
   - statsmodels=0.14.6
   - pip
   - pip:
-      - adjustText
+      - adjustText==1.3.0
       # --- data collection / feature extraction only ---
       - openai
       - anthropic

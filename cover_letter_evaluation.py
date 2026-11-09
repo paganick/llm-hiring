@@ -81,7 +81,7 @@ class ClaudeModel(LLM):
         return ""
 
 class GeminiModel(LLM):
-    def __init__(self, model_name="gemini-2.0-flash"): 
+    def __init__(self, model_name="gemini-3-flash-preview"):
         super().__init__(model_name)
         self.client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -327,7 +327,6 @@ def process_all_jobs(job_data, evaluators):
     gpt_5_evaluator = evaluators['gpt-5-mini']
     claude_evaluator = evaluators['claude-haiku-4-5']
     deepseek_evaluator = evaluators['deepseek-chat']
-    gemini_evaluator = evaluators['gemini-2.0-flash']
     gemini_3_evaluator = evaluators['gemini-3-flash-preview']
 
     for job_id, data in job_data.items():
@@ -363,7 +362,6 @@ def process_all_jobs(job_data, evaluators):
                         agent_cv_gpt_5 = CandidateEvaluator(gpt_5_evaluator.model, "CV_Only")       # NEW
                         agent_cv_claude = CandidateEvaluator(claude_evaluator.model, "CV_Only")
                         agent_cv_deep = CandidateEvaluator(deepseek_evaluator.model, "CV_Only")
-                        agent_cv_gemini = CandidateEvaluator(gemini_evaluator.model, "CV_Only")
                         agent_cv_gemini_3 = CandidateEvaluator(gemini_3_evaluator.model, "CV_Only") # NEW
                         
                         # Define Paths & Submit ONLY if missing
@@ -388,11 +386,6 @@ def process_all_jobs(job_data, evaluators):
                         if not os.path.exists(p_deep):
                             futures.append(executor.submit(evaluate_and_save, agent_cv_deep, resume_text, job_description, None, p_deep))
                         
-                        # Gemini 2.0 Flash
-                        p_gemini = os.path.join(path_cv_only, f"gemini-2.0-flash_cv_only_eval_cv{cv_num}.txt")
-                        if not os.path.exists(p_gemini):
-                            futures.append(executor.submit(evaluate_and_save, agent_cv_gemini, resume_text, job_description, None, p_gemini))
-                            
                         # Gemini 3.0 Flash
                         p_gemini_3 = os.path.join(path_cv_only, f"gemini-3-flash-preview_cv_only_eval_cv{cv_num}.txt")
                         if not os.path.exists(p_gemini_3):
@@ -407,7 +400,7 @@ def process_all_jobs(job_data, evaluators):
                         gen_models = [
                             'llama3.1-8b', 'deepseek-r1-8b', 'deepseek-chat', 
                             'gpt-4o-mini', 'gpt-5-mini',
-                            'claude-haiku-4-5', 'gemini-2.0-flash', 'gemini-3-flash-preview'
+                            'claude-haiku-4-5', 'gemini-3-flash-preview'
                         ]
                         
                         for gen_model in gen_models: 
@@ -418,13 +411,12 @@ def process_all_jobs(job_data, evaluators):
                             cl_content = read_file_content(cl_full_path)
                             if not cl_content: continue
 
-                            # For each generator, run ALL 6 Evaluators
+                            # For each generator, run every evaluator
                             eval_agents = {
                                 'gpt-4o-mini': gpt_evaluator,
                                 'gpt-5-mini': gpt_5_evaluator,
                                 'claude-haiku-4-5': claude_evaluator,
                                 'deepseek-chat': deepseek_evaluator,
-                                'gemini-2.0-flash': gemini_evaluator,
                                 'gemini-3-flash-preview': gemini_3_evaluator
                             }
 
@@ -470,7 +462,6 @@ if __name__ == '__main__':
     gpt_5_model = OpenAIModel("gpt-5-mini")                 
     claude_model = ClaudeModel("claude-haiku-4-5-20251001") 
     deepseek_model = DeepSeekAPIModel("deepseek-chat")
-    gemini_model = GeminiModel("gemini-2.0-flash")
     gemini_3_model = GeminiModel("gemini-3-flash-preview")
 
     # 2. Initialize Evaluator Agents
@@ -479,7 +470,6 @@ if __name__ == '__main__':
         'gpt-5-mini': CoverLetterEvaluator(gpt_5_model),
         'claude-haiku-4-5': CoverLetterEvaluator(claude_model),
         'deepseek-chat': CoverLetterEvaluator(deepseek_model),
-        'gemini-2.0-flash': CoverLetterEvaluator(gemini_model),
         'gemini-3-flash-preview': CoverLetterEvaluator(gemini_3_model)
     }
 

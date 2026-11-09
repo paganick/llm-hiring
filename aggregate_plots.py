@@ -26,18 +26,10 @@ from scipy import stats
 # ==========================
 # CONFIGURATION
 # ==========================
-BASE_DIR = "./output_eval"
 
-NO_GEMINI2 = "--no-gemini2" in sys.argv
-
-if NO_GEMINI2:
-    OUT_DIR         = "./output_plots/paper_plots_v3_no_gemini2"
-    CACHE_PATH      = "./output_eval/master_df_no_gemini2.parquet"
-    COMP_CACHE_PATH = "./output_eval/competitive_df_no_gemini2.parquet"
-else:
-    OUT_DIR         = "./output_plots/paper_plots_v3"
-    CACHE_PATH      = "./output_eval/master_df.parquet"
-    COMP_CACHE_PATH = "./output_eval/competitive_df.parquet"
+OUT_DIR         = "./output_plots/paper_plots"
+CACHE_PATH      = "./output_eval/master_df.parquet"
+COMP_CACHE_PATH = "./output_eval/competitive_df.parquet"
 
 TIER_NAME  = "All_CVs"
 TIER_RANGE = (1, 50)
@@ -96,7 +88,6 @@ RAW_WRITERS = [
     "deepseek-v3.2", "deepseek-v4-flash", "deepseek-r1-8b", "llama3.1-8b",
 ]
 
-MODEL_PAIRS = [f"{e}_{w}" for e in UNIQUE_EVALUATORS for w in RAW_WRITERS]
 
 SORTED_WRITERS = [e for e in UNIQUE_EVALUATORS if e in RAW_WRITERS] + \
                  [w for w in RAW_WRITERS if w not in UNIQUE_EVALUATORS]
@@ -125,7 +116,6 @@ MODEL_DISPLAY = {
     "gpt-4o-mini":            "GPT-4o mini",
     "gpt-5-mini":             "GPT-5 mini",
     "gpt-5":                  "GPT-5",
-    "gemini-2.0-flash":       "Gemini 2.0 Flash",
     "gemini-3-flash-preview": "Gemini 3 Flash",
     "gemini-3.5-flash":       "Gemini 3.5 Flash",
     "claude-haiku-4-5":       "Claude Haiku 4.5",
@@ -145,204 +135,28 @@ plt.rcParams.update({"figure.max_open_warning": 0})
 # SHARED HELPERS
 # ==========================
 
-def extract_first_number(filepath):
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            m = re.search(r"(\d+(?:\.\d+)?)", f.read())
-            return float(m.group(1)) if m else None
-    except Exception as e:
-        print(f"  ERROR reading {filepath}: {e}")
-        return None
-
-
-def detect_cv_count(path):
-    max_cv = 0
-    if not os.path.exists(path):
-        return 0
-    for root, _, files in os.walk(path):
-        for fname in files:
-            m = re.search(r"cv(\d+)", fname, re.IGNORECASE)
-            if m:
-                max_cv = max(max_cv, int(m.group(1)))
-    return max_cv
-
-
-def format_job_title(job_id, folder_name):
-    clean = folder_name.replace(job_id, "").strip("_")
-    clean = re.sub(r"_\d+$", "", clean).replace("_", " ")
-    return f"{clean} ({job_id.replace('job_', '')})"
-
-
-def parse_filename(filename, etype):
-    """Extracts (evaluator, writer, cv_idx) from a score filename."""
-    evaluator = next(
-        (e for e in sorted(UNIQUE_EVALUATORS, key=len, reverse=True)
-         if filename.startswith(e + "_")),
-        None,
-    )
-    if not evaluator:
-        return None, None, None
-
-    if etype == "cv_only":
-        writer = "CV_ONLY"
-    else:
-        remainder = filename[len(evaluator) + 1:]
-        writer = next(
-            (w for w in sorted(RAW_WRITERS, key=len, reverse=True)
-             if remainder.startswith(w + "_") or remainder.startswith(w + ".")
-             or remainder == w),
-            None,
-        )
-        if not writer:
-            return None, None, None
-
-    m = re.search(r"cv(\d+)", filename, re.IGNORECASE)
-    if not m:
-        return None, None, None
-    return evaluator, writer, int(m.group(1))
-
 
 # ==========================
 # DATA LOADING — Plots 1 & 2
 # ==========================
-
-def _scores_from_folder(folder):
-    scores = {}
-    if not os.path.exists(folder):
-        return scores
-    for fname in os.listdir(folder):
-        if fname.endswith(".txt"):
-            s = extract_first_number(os.path.join(folder, fname))
-            if s is not None:
-                scores[fname] = s
-    return scores
-
-
-def collect_job_data(version_folders, cv_count):
-    etypes = ["cl_evaluations", "cv_cl_evaluations"]
-    data = {
-        et: {pair: {i: [] for i in range(1, cv_count + 2)} for pair in MODEL_PAIRS}
-        for et in etypes
-    }
-    for _, _, v_path in version_folders:
-        if not os.path.exists(v_path):
-            continue
-        for run_folder in sorted(os.listdir(v_path)):
-            run_path = os.path.join(v_path, run_folder)
-            if not os.path.isdir(run_path):
-                continue
-            for etype in etypes:
-                for fname, score in _scores_from_folder(os.path.join(run_path, etype)).items():
-                    for pair in MODEL_PAIRS:
-                        if pair in fname:
-                            m = re.search(r"cv(\d+)", fname, re.IGNORECASE)
-                            if m:
-                                idx = int(m.group(1))
-                                if idx <= cv_count:
-                                    data[etype][pair][idx].append(score)
-    return data
-
-
-def merge_jobs_data(all_jobs_data):
-    etypes = ["cl_evaluations", "cv_cl_evaluations"]
-    global_data = {et: {pair: {} for pair in MODEL_PAIRS} for et in etypes}
-    for job_data in all_jobs_data.values():
-        for et in etypes:
-            for pair in MODEL_PAIRS:
-                for cv_idx, scores in job_data[et][pair].items():
-                    global_data[et][pair].setdefault(cv_idx, []).extend(scores)
-    return global_data
 
 
 # ==========================
 # DATA LOADING
 # ==========================
 
-def build_master_df(base_dir, force=False):
-    if not force and os.path.exists(CACHE_PATH):
-        print(f"  Loading master dataframe from cache ({CACHE_PATH})")
-        return pd.read_parquet(CACHE_PATH)
-
-    print("  Building master dataframe from raw files (this takes a while)...")
-    rows = []
-    for job_folder in sorted(os.listdir(base_dir)):
-        job_path = os.path.join(base_dir, job_folder)
-        if not os.path.isdir(job_path):
-            continue
-        m = re.match(r"(job_\d+)", job_folder)
-        if not m:
-            continue
-        job_id = m.group(1)
-        job_title = format_job_title(job_id, job_folder)
-        for run_folder in os.listdir(job_path):
-            if not run_folder.startswith("run_"):
-                continue
-            m_run = re.search(r"run_(\d+)", run_folder)
-            run_id = int(m_run.group(1)) if m_run else 0
-            run_path = os.path.join(job_path, run_folder)
-            for etype in ["cv_only", "cl_evaluations", "cv_cl_evaluations"]:
-                eval_path = os.path.join(run_path, etype)
-                if not os.path.exists(eval_path):
-                    continue
-                for fname in os.listdir(eval_path):
-                    if not fname.endswith(".txt"):
-                        continue
-                    evaluator, writer, cv_idx = parse_filename(fname, etype)
-                    if evaluator and writer and cv_idx:
-                        score = extract_first_number(os.path.join(eval_path, fname))
-                        if score is not None:
-                            rows.append({
-                                "Job_ID": job_id, "Job_Title": job_title,
-                                "Run": run_id,
-                                "Eval_Type": etype, "Evaluator": evaluator,
-                                "Writer": writer, "CV_Idx": cv_idx, "Score": score,
-                            })
-    df = pd.DataFrame(rows)
-    df.to_parquet(CACHE_PATH, index=False)
-    print(f"  Cached master dataframe → {CACHE_PATH}")
-    return df
+def load_master_df():
+    if not os.path.exists(CACHE_PATH):
+        sys.exit(f"ERROR: {CACHE_PATH} not found; build it with build_score_caches.py.")
+    print(f"  Loading master dataframe from cache ({CACHE_PATH})")
+    return pd.read_parquet(CACHE_PATH)
 
 
-
-
-def load_competitive_data(base_dir):
+def load_competitive_data():
     if not os.path.exists(COMP_CACHE_PATH):
         print(f"  WARNING: {COMP_CACHE_PATH} not found — skipping competitive plots.")
         return pd.DataFrame()
     return pd.read_parquet(COMP_CACHE_PATH)
-
-
-def calculate_leapfrog_cosine(df, evaluator, baseline_writer, target_writer):
-    """Like calculate_leapfrog but incumbents/challengers are fixed by cosine-similarity
-    rank (CV_Idx 1-25 = high-similarity incumbents, 26-50 = low-similarity challengers).
-
-    The 4 replicate runs are averaged into a single per-(evaluator, job, CV_Idx)
-    score BEFORE ranking/displacement is computed, matching the run-averaged score
-    s_{e,j,c,w} used as the unit everywhere else in the paper. The 4 runs are not
-    independent evidence about the displacement rate -- they are the same model
-    answering the same prompt 4 times -- so returning one value per (job, run)
-    here would inflate the effective N of any significance test built on this
-    function's output by 4x. This returns at most one value per job."""
-    eval_df = df[df["Evaluator"] == evaluator]
-    results = []
-    for job_id in eval_df["Job"].unique():
-        env = eval_df[eval_df["Job"] == job_id]
-        cv_cl = env[env["Type"] == "cv_cl_evaluations"]
-        incumbent_cvs  = list(range(1, 26))
-        challenger_cvs = list(range(26, 51))
-        inc_raw  = cv_cl[(cv_cl["Writer"] == baseline_writer) & cv_cl["CV_Idx"].isin(incumbent_cvs)]
-        chal_raw = cv_cl[(cv_cl["Writer"] == target_writer)  & cv_cl["CV_Idx"].isin(challenger_cvs)]
-        if inc_raw.empty or chal_raw.empty:
-            continue
-        incumbents  = inc_raw.groupby("CV_Idx", as_index=False)["Score"].mean()
-        challengers = chal_raw.groupby("CV_Idx", as_index=False)["Score"].mean()
-        challengers["Type_Tag"] = "Challenger"
-        pool = pd.concat([incumbents, challengers])
-        pool = pool.sort_values(by=["Score", "CV_Idx"], ascending=[False, True])
-        pool["New_Rank"] = range(1, len(pool) + 1)
-        success = pool[(pool["Type_Tag"] == "Challenger") & (pool["New_Rank"] <= 25)]
-        results.append(len(success) / len(challengers) * 100)
-    return results
 
 
 def calculate_leapfrog(df, evaluator, baseline_writer, target_writer):
@@ -376,7 +190,11 @@ def calculate_leapfrog(df, evaluator, baseline_writer, target_writer):
         challengers = chal_raw.groupby("CV_Idx", as_index=False)["Score"].mean()
         challengers["Type_Tag"] = "Challenger"
         pool = pd.concat([incumbents, challengers])
-        pool = pool.sort_values(by=["Score", "CV_Idx"], ascending=[False, True])
+        # Incumbents win score ties: a challenger displaces only with a strictly
+        # higher score. CV_Idx is just a stable last key.
+        pool["Is_Challenger"] = pool["Type_Tag"].eq("Challenger")
+        pool = pool.sort_values(by=["Score", "Is_Challenger", "CV_Idx"],
+                                ascending=[False, True, True])
         pool["New_Rank"] = range(1, len(pool) + 1)
         success = pool[(pool["Type_Tag"] == "Challenger") & (pool["New_Rank"] <= 25)]
         results.append(len(success) / len(challengers) * 100)
@@ -1654,9 +1472,17 @@ def plot_merit_agreement_combined(tier_df, save_dir):
     os.makedirs(save_dir, exist_ok=True)
 
     def _corr(vecs):
-        return pd.DataFrame(vecs).dropna().corr(method="spearman")
+        # Within-job Spearman: rank the 50 candidates of each job, correlate
+        # evaluators over those rankings, then average the matrices across
+        # jobs. Pooling all (Job, CV) pairs instead would let agreement on
+        # which jobs have stronger pools inflate the correlation.
+        df = pd.DataFrame(vecs).dropna()
+        per_job = [g.corr(method="spearman")
+                   for _, g in df.groupby(level="Job_ID")]
+        return pd.DataFrame(np.nanmean(np.stack([c.values for c in per_job]), axis=0),
+                            index=per_job[0].index, columns=per_job[0].columns)
 
-    # CV-only: single ρ over (Job, CV) pairs
+    # CV-only: within-job ρ over (Job, CV) pairs, averaged across jobs
     sub_cv = tier_df[tier_df["Eval_Type"] == "cv_only"]
     vecs_cv = {
         MODEL_DISPLAY.get(ev, ev): (
@@ -1667,7 +1493,7 @@ def plot_merit_agreement_combined(tier_df, save_dir):
     }
     corr_cv = _corr(vecs_cv)
 
-    # CL and CV+CL Merit: per-writer ρ over (Job, CV) pairs, then mean ± std
+    # CL and CV+CL Merit: per-writer within-job ρ, then mean ± std across writers
     merit_corrs = {}
     for etype in ["cl_evaluations", "cv_cl_evaluations"]:
         sub = tier_df[tier_df["Eval_Type"] == etype]
@@ -2224,13 +2050,9 @@ def plot_intra_run_variance(tier_df, save_dir):
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    if not os.path.exists(BASE_DIR) and not os.path.exists(CACHE_PATH):
-        print(f"ERROR: {BASE_DIR} does not exist.")
-        return
-
     # Master dataframe (from parquet cache)
     print("\n=== Loading master dataframe ===")
-    master_df = build_master_df(BASE_DIR)
+    master_df = load_master_df()
     tier_df = pd.DataFrame()
     if not master_df.empty:
         start_cv, end_cv = TIER_RANGE
@@ -2240,7 +2062,7 @@ def main():
 
     # Net advantage (arena simulation)
     print("\n=== Loading data for net_advantage plot ===")
-    comp_df = load_competitive_data(BASE_DIR)
+    comp_df = load_competitive_data()
     delta = p_mat = rounded_raw = writers = None
     if not comp_df.empty:
         writers = sorted(
@@ -2330,56 +2152,6 @@ def main():
         # and by summed |net| across their whole matrix (DeepSeek V3.2).
         plot_net_advantage_extreme_evaluators(
             comp_df, writers, ("gpt-4o-mini", "deepseek-v3.2"), OUT_DIR)
-
-        # Cosine-similarity split variant
-        print("\n=== Simulating arena (cosine-similarity split) ===")
-        global_dist_cos = {(b, t): [] for b in writers for t in writers}
-        eval_dist_cos = {(b, t): {} for b in writers for t in writers}
-        for evaluator in UNIQUE_EVALUATORS:
-            print(f"  Simulating arena (cosine) for {evaluator}...")
-            for b in writers:
-                for t in writers:
-                    vals = calculate_leapfrog_cosine(comp_df, evaluator, b, t)
-                    global_dist_cos[(b, t)].extend(vals)
-                    if vals:
-                        eval_dist_cos[(b, t)][evaluator] = np.mean(vals)
-        global_raw_cos = np.zeros((len(writers), len(writers)))
-        for i, b in enumerate(writers):
-            for j, t in enumerate(writers):
-                pcts = global_dist_cos[(b, t)]
-                global_raw_cos[i, j] = np.mean(pcts) if pcts else np.nan
-        rounded_raw_cos = np.round(global_raw_cos, 1)
-        delta_cos = np.zeros((len(writers), len(writers)))
-        p_mat_cos = np.full((len(writers), len(writers)), np.nan)
-        for i, b in enumerate(writers):
-            ctrl_by_eval = eval_dist_cos[(b, b)]
-            ctrl_val = rounded_raw_cos[i, i]
-            for j, t in enumerate(writers):
-                tgt_by_eval = eval_dist_cos[(b, t)]
-                if not tgt_by_eval or not ctrl_by_eval:
-                    delta_cos[i, j] = np.nan
-                    continue
-                delta_cos[i, j] = rounded_raw_cos[i, j] - ctrl_val
-                if i == j:
-                    p_mat_cos[i, j] = 1.0
-                    continue
-                # Same evaluator-level test as above: see comment there.
-                common_evs = [e for e in UNIQUE_EVALUATORS
-                              if e in tgt_by_eval and e in ctrl_by_eval]
-                if len(common_evs) > 1:
-                    tgt_arr  = np.array([tgt_by_eval[e] for e in common_evs])
-                    ctrl_arr = np.array([ctrl_by_eval[e] for e in common_evs])
-                    if np.array_equal(tgt_arr, ctrl_arr):
-                        p_mat_cos[i, j] = 1.0
-                    else:
-                        _, p = stats.ttest_rel(tgt_arr, ctrl_arr)
-                        p_mat_cos[i, j] = p
-        if not tier_df.empty:
-            plot_win_net_combined(
-                tier_df, delta_cos, p_mat_cos, rounded_raw_cos, writers, OUT_DIR,
-                group_labels=("High-Similarity", "Moderate-Similarity"),
-                fname="win_net_combined_cosine.png",
-            )
     else:
         print("  Skipping net_advantage / win_net_combined (no competitive data).")
 

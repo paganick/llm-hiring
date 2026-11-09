@@ -65,17 +65,7 @@ def find_needed_figures():
 # script itself for exactly which — they're not all the same directory).
 # Order matters: later scripts import names from earlier ones.
 SCRIPTS = [
-    # --no-gemini2: gemini-2.0-flash was dropped from UNIQUE_EVALUATORS/RAW_WRITERS
-    # (aggregate_plots.py) but the DEFAULT cache (master_df.parquet,
-    # competitive_df.parquet) still contains its rows, and main() builds its
-    # writers/evaluators lists from those raw caches' .unique() values rather
-    # than filtering through the constants — so the plain default run lets
-    # gemini-2.0-flash silently leak back in as an extra, undocumented 12th
-    # writer. --no-gemini2 points at the caches that physically exclude it
-    # (master_df_no_gemini2.parquet etc.), matching every other script here
-    # (they all hardcode the *_no_gemini2 paths with no flag at all) and
-    # matching the paper's stated 11-writer/9-evaluator roster.
-    ("aggregate_plots.py", ["--no-gemini2"]),
+    ("aggregate_plots.py", []),
     ("plot_feature_regression.py", []),
     ("plot_nested_model_decomposition.py", []),
     ("plot_model_explainability.py", []),
@@ -85,8 +75,8 @@ SCRIPTS = [
 
 # Where each script's outputs land, relative to PROJECT_ROOT.
 OUTPUT_DIRS = [
-    "output_plots/paper_plots_v3_no_gemini2",
-    "output_plots/cl_features_no_gemini2",
+    "output_plots/paper_plots",
+    "output_plots/cl_features",
 ]
 
 
@@ -209,6 +199,10 @@ def main():
     do_prune = "--prune" in sys.argv
     if "--skip-generation" not in sys.argv:
         run_scripts()
+    if not os.path.exists(PAPER_TEX):
+        print(f"\nNo manuscript at {PAPER_TEX}; figures are in output_plots/. "
+              "Skipping the comparison with paper/figures/.")
+        return
     generated = find_generated_pngs()
     report_and_sync(generated, do_sync, do_prune)
 
