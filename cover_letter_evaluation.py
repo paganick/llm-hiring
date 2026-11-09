@@ -1,3 +1,12 @@
+"""Evaluation, stage 1 (first experiment): direct provider APIs.
+
+Produced the scores of GPT-4o mini, GPT-5 mini, Claude Haiku 4.5 and Gemini 3 Flash
+on the CV-only condition and on the letters of the original seven writers (Llama 3.1 8B,
+DeepSeek R1 8B, DeepSeek V3.2 [then "deepseek-chat"], GPT-4o mini, GPT-5 mini,
+Claude Haiku 4.5, Gemini 3 Flash). All other scores come from stage 2,
+cover_letter_evaluation_gateway.py. Kept as the record of what ran; to rerun the
+experiment, use the gateway script, which covers every evaluator and writer.
+"""
 import os
 import glob
 import re

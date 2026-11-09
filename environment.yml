@@ -28,3 +28,4 @@ dependencies:
       - nltk
       - textstat
       - tqdm
+      - python-dotenv

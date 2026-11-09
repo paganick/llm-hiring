@@ -29,7 +29,8 @@ against what the paper embeds; `--sync` copies changed figures in.
 |---|---|
 | `get_data.py` | Selects the 10 jobs and 50 CVs per job from the Kaggle datasets (top 25 by CV–job cosine similarity, plus 25 starting at the first CV with similarity ≤ 0.4) |
 | `cover_letter_generation.py` | Phase 1: writer models generate cover letters |
-| `cover_letter_evaluation.py` | Phase 2: evaluator models score CV only / letter only / CV + letter |
+| `cover_letter_evaluation.py` | Phase 2, stage 1 (direct provider APIs): GPT-4o mini, GPT-5 mini, Claude Haiku 4.5 and Gemini 3 Flash score CV only and the original seven writers' letters. Kept as a record |
+| `cover_letter_evaluation_gateway.py` | Phase 2, stage 2 (Vercel AI Gateway): every other score. Same prompts; Gemini 3.5 Flash with thinking level "low". **Use this one to rerun the evaluation**: it covers all nine evaluators and eleven writers |
 | `build_score_caches.py` | Builds `master_df` and `competitive_df` from `evaluations.csv` |
 | `compute_cv_job_similarity.py` | CV–job cosine similarity (all-MiniLM-L6-v2) → `output_eval/cv_job_similarity.parquet` |
 | `extract_cl_features.py` | Writing-style features of every letter → `output_eval/cl_features.parquet` |

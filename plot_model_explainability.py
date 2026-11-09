@@ -1218,20 +1218,10 @@ def main():
         inflation_reward[eval_type] = compute_evaluator_inflation_reward(merged, eval_type, pooled_slope)
     plot_evaluator_inflation_reward(inflation_reward)
 
+    # CV + Cover Letter only: the evaluator never sees the CV in the
+    # cover-letter-only condition, so a reward for CV fit is not meaningful
+    # there (same reasoning as CL_ONLY_FEATURE_COLS in plot_feature_regression.py).
     print("Computing per-evaluator cosine-similarity preferences...")
-    eval_pref_df = compute_evaluator_cosine_prefs(merged, "cl_evaluations")
-    print(eval_pref_df.sort_values("pref_job", ascending=False).round(4))
-
-    plot_writer_vs_evaluator_cosine(echo_df, eval_pref_df, "writer_vs_evaluator_cosine.png")
-
-    # CV + Cover Letter counterpart, for the paper appendix: this is the
-    # ONLY condition where "reward for CV-echo" is a meaningful regressor
-    # at all — the cover-letter-only evaluator panel above technically
-    # fits a coefficient on cv_cosine_sim too, but the evaluator's prompt
-    # never contains the CV in that condition, so that coefficient can't
-    # reflect a genuine preference (same reasoning as CL_ONLY_FEATURE_COLS
-    # in plot_feature_regression.py). Kept as a separate file rather than
-    # replacing the CL-only one above, which is left as-is for now.
     eval_pref_df_cvcl = compute_evaluator_cosine_prefs(merged, "cv_cl_evaluations")
     plot_writer_vs_evaluator_cosine(echo_df, eval_pref_df_cvcl, "writer_vs_evaluator_cosine_cvcl.png",
                                      title_note="  [CV + Cover Letter]",
