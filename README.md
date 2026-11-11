@@ -64,4 +64,10 @@ the repo as `raw_datasets`, `dataset`, `output_cl` (gitignored).
   dropped because it is much older than the other models, and its outputs are
   not part of the released data or of any result.
 - API keys are read from `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
-  `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`. Local models run through Ollama.
+  `GEMINI_API_KEY`, `DEEPSEEK_API_KEY` (generation and stage-1 evaluation) and
+  `AI_GATEWAY_API_KEY` (stage-2 evaluation). Local models run through Ollama.
+
+## License
+
+MIT; see `LICENSE`. The Kaggle datasets and the NRC-VAD lexicon keep their
+own licences and are not redistributed here.
