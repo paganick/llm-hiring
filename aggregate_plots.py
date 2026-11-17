@@ -413,6 +413,35 @@ def plot_heatmap_gap_combined(tier_df, save_dir):
     print("  Saved heatmap_gap_combined.png")
 
 
+def compute_win_rate(subset, writers):
+    """Head-to-head win rates WR(w1, w2) in percent.
+
+    Letters are compared within the same run: for every (job, CV, evaluator,
+    run), writer w1 wins if its letter scores strictly higher than w2's, with
+    ties counting 0.5. Wins and matches are pooled over the four runs, which
+    equals averaging the per-run win rates because every run has the same
+    number of matches. Triples where the evaluator is w1 or w2 are excluded.
+    """
+    n = len(writers)
+    win_matrix = np.zeros((n, n))
+    match_count = np.zeros((n, n))
+    piv = subset.pivot_table(index=["Job_ID", "CV_Idx", "Evaluator", "Run"],
+                             columns="Writer", values="Score", aggfunc="first")
+    evaluators = piv.index.get_level_values("Evaluator")
+    for i, w1 in enumerate(writers):
+        for j, w2 in enumerate(writers):
+            if i == j or w1 not in piv.columns or w2 not in piv.columns:
+                continue
+            ok = (evaluators != w1) & (evaluators != w2) & piv[w1].notna() & piv[w2].notna()
+            s1, s2 = piv.loc[ok, w1], piv.loc[ok, w2]
+            match_count[i][j] = ok.sum()
+            win_matrix[i][j] = (s1 > s2).sum() + 0.5 * (s1 == s2).sum()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        win_rate = (win_matrix / match_count) * 100
+    np.fill_diagonal(win_rate, np.nan)
+    return win_rate
+
+
 def plot_win_matrix(df, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     etype = "cv_cl_evaluations"
@@ -423,26 +452,7 @@ def plot_win_matrix(df, save_dir):
     if subset.empty:
         return
 
-    win_matrix = np.zeros((n, n))
-    match_count = np.zeros((n, n))
-    for (job, cv, evaluator), group in subset.groupby(["Job_ID", "CV_Idx", "Evaluator"]):
-        scores = dict(zip(group["Writer"], group["Score"]))
-        for i, w1 in enumerate(writers):
-            for j, w2 in enumerate(writers):
-                if i == j or evaluator in (w1, w2):
-                    continue
-                s1, s2 = scores.get(w1), scores.get(w2)
-                if s1 is not None and s2 is not None:
-                    match_count[i][j] += 1
-                    if s1 > s2:
-                        win_matrix[i][j] += 1
-                    elif s1 == s2:
-                        win_matrix[i][j] += 0.5
-
-    win_rate = np.full((n, n), np.nan)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        win_rate = (win_matrix / match_count) * 100
-    np.fill_diagonal(win_rate, np.nan)
+    win_rate = compute_win_rate(subset, writers)
 
     df_win = pd.DataFrame(win_rate, index=writers, columns=writers)
     df_win["Avg."] = df_win.mean(axis=1, skipna=True)
@@ -746,25 +756,7 @@ def plot_win_net_combined(tier_df, delta_matrix, p_matrix, raw_matrix, writers_n
     writers_win = sorted([w for w in subset["Writer"].unique() if w != "CV_ONLY"])
     n_win = len(writers_win)
 
-    win_matrix  = np.zeros((n_win, n_win))
-    match_count = np.zeros((n_win, n_win))
-    for (job, cv, evaluator), group in subset.groupby(["Job_ID", "CV_Idx", "Evaluator"]):
-        scores = dict(zip(group["Writer"], group["Score"]))
-        for i, w1 in enumerate(writers_win):
-            for j, w2 in enumerate(writers_win):
-                if i == j or evaluator in (w1, w2):
-                    continue
-                s1, s2 = scores.get(w1), scores.get(w2)
-                if s1 is not None and s2 is not None:
-                    match_count[i][j] += 1
-                    if s1 > s2:
-                        win_matrix[i][j] += 1
-                    elif s1 == s2:
-                        win_matrix[i][j] += 0.5
-
-    with np.errstate(divide="ignore", invalid="ignore"):
-        win_rate = (win_matrix / match_count) * 100
-    np.fill_diagonal(win_rate, np.nan)
+    win_rate = compute_win_rate(subset, writers_win)
 
     df_win = pd.DataFrame(win_rate, index=writers_win, columns=writers_win)
     df_win["Avg."] = df_win.mean(axis=1, skipna=True)
