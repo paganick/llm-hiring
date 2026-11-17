@@ -352,6 +352,9 @@ def plot_heatmap_gap_combined(tier_df, save_dir):
 
     for ax_idx, (ax, etype) in enumerate(zip(axes, etypes)):
         df, df_annot, sorted_rows, sorted_cols = built[etype]
+        # Values plus the cell labels; "(*)" marks p < 0.05 (bold in the figure)
+        df.to_csv(os.path.join(save_dir, f"heatmap_gap_combined_{etype}.csv"))
+        df_annot.to_csv(os.path.join(save_dir, f"heatmap_gap_combined_{etype}_labels.csv"))
         df_plot       = df.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
         df_annot_plot = df_annot.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
         sns.heatmap(

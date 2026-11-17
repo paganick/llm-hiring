@@ -626,6 +626,14 @@ def plot_divergence_dotplot(pairwise, out_name, top_n=25, title_note=""):
     print(f"  Saved {out_name}")
 
 
+def _save_plot_data(df, out_path, part=None):
+    """Store the exact values drawn in a figure next to its PNG, as <stem>_data[_part].csv."""
+    stem = os.path.splitext(out_path)[0]
+    path = f"{stem}_data{'_' + part if part else ''}.csv"
+    df.to_csv(path, index=False)
+    print(f"  Saved {path}")
+
+
 def plot_category_dotplot(pairwise, feat_cols, category, out_path, xlim, feat_df):
     """
     Same dot-plot idea as plot_divergence_dotplot, but exhaustive rather than
@@ -743,6 +751,14 @@ def plot_category_dotplot(pairwise, feat_cols, category, out_path, xlim, feat_df
                for m in evaluators]
     fig.legend(handles=handles, loc="upper center", ncol=5, fontsize=print_pt(LEGEND_PT_TARGET, canvas_w),
                frameon=False, bbox_to_anchor=(0.5, 0.0))
+
+    _save_plot_data(pd.DataFrame(
+        [{"writer": r["writer"], "feature": r["feature"], "evaluator": m, "contribution": v}
+         for r in rows[::-1] for m, v in r["values"].items()]), out_path, "dots")
+    _save_plot_data(pd.concat(
+        [pd.DataFrame({"writer": w, "feature": f,
+                       "value": feat_df.loc[feat_df["Writer"] == w, f].dropna().values})
+         for f in feat_cols for w, _ in blocks_ordered[f]], ignore_index=True), out_path, "box")
 
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -977,6 +993,15 @@ def plot_self_points_summary_ranked(pairwise, feat_cols, feat_df, out_path, titl
     # Ascending, plotted directly (no reversal) — largest |value| ends up at
     # the top, same leaderboard convention as the common-preference ranking.
     rows.sort(key=lambda r: r["max_abs"])
+
+    _save_plot_data(pd.DataFrame(
+        [{"rank_from_top": len(rows) - i, "feature": r["feature"], "writer": w,
+          "self_contribution": v, "marker_size": s,
+          "writer_mean": per_feat[r["feature"]]["own_mean"][w],
+          "pooled_mean": per_feat[r["feature"]]["feat_mean"],
+          "effect_sd_units": per_feat[r["feature"]]["effect"][w],
+          "above_pooled_mean": marker == "^"}
+         for i, r in enumerate(rows) for w, (v, s, marker) in r["points"].items()]), out_path)
 
     n = len(rows)
     # Width matches plot_common_preference_summary_ranked's 20in canvas (that
@@ -1253,6 +1278,15 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
     # of the axes and the largest mean at the top, so the plot reads like a
     # leaderboard — most-rewarded feature at the top.
     rows.sort(key=lambda r: r["mean"])
+
+    _save_plot_data(pd.DataFrame(
+        [{"rank_from_top": len(rows) - i, "feature": r["feature"], "evaluator": e,
+          "coefficient": v, "cross_evaluator_mean": r["mean"], "unanimous": r["unanimous"]}
+         for i, r in enumerate(rows) for e, v in r["vals"].items()]), out_path, "coef")
+    _save_plot_data(pd.DataFrame(
+        [{"rank_from_top": len(rows) - i, "feature": r["feature"], "writer": w,
+          "mean_sd_units": z, "std_sd_units": zerr}
+         for i, r in enumerate(rows) for w, (z, zerr) in r["writer_z"].items()]), out_path, "writers")
 
     n = len(rows)
     canvas_w = 20

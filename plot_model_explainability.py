@@ -1103,6 +1103,11 @@ def main():
         for eval_type, df in by_eval_type.items():
             if hasattr(df, "to_csv"):
                 df.to_csv(os.path.join(OUT_DIR, f"{name}_{eval_type}.csv"))
+            elif isinstance(df, tuple):
+                # e.g. compute_substance_style_drilldown returns (row order, contributions)
+                for k, part in enumerate(df):
+                    if hasattr(part, "to_csv"):
+                        part.to_csv(os.path.join(OUT_DIR, f"{name}_{eval_type}_part{k}.csv"))
 
     plot_style_breakdown(
         eval_style,
