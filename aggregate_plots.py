@@ -20,6 +20,7 @@ import matplotlib.patches as mpatches
 import matplotlib.gridspec as gridspec
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
+import paper_style as ps
 import seaborn as sns
 from scipy import stats
 
@@ -93,24 +94,14 @@ SORTED_WRITERS = [e for e in UNIQUE_EVALUATORS if e in RAW_WRITERS] + \
                  [w for w in RAW_WRITERS if w not in UNIQUE_EVALUATORS]
 
 TITLE_MAP = {
-    "cl_evaluations":    "Cover Letter Only",
-    "cv_cl_evaluations": "CV + Cover Letter",
-    "cv_only":           "CV Only",
+    "cl_evaluations":    "Cover letter only",
+    "cv_cl_evaluations": "CV + cover letter",
+    "cv_only":           "CV only",
 }
 
-WRITER_COLORS = {
-    "gpt-4o-mini":            "#1565C0",  # OpenAI – dark blue
-    "gpt-5-mini":             "#42A5F5",  # OpenAI – light blue
-    "gpt-5":                  "#0D47A1",  # OpenAI – navy
-    "gemini-3-flash-preview": "#66BB6A",  # Google – medium green
-    "gemini-3.5-flash":       "#558B2F",  # Google – olive green
-    "claude-haiku-4-5":       "#E65100",  # Anthropic – burnt orange
-    "claude-4.6-sonnet":      "#BF360C",  # Anthropic – deep red-orange
-    "deepseek-v3.2":          "#4A148C",  # DeepSeek – dark purple
-    "deepseek-v4-flash":      "#7B1FA2",  # DeepSeek – medium purple
-    "deepseek-r1-8b":         "#AB47BC",  # DeepSeek – light purple
-    "llama3.1-8b":            "#5D4037",  # Meta – brown
-}
+# Provider-based shades (paper_style.py), kept in RAW_WRITERS order: some
+# scripts take their model order from this dict.
+WRITER_COLORS = {m: ps.MODEL_SHADES[m] for m in RAW_WRITERS}
 
 MODEL_DISPLAY = {
     "gpt-4o-mini":            "GPT-4o mini",
@@ -128,7 +119,7 @@ MODEL_DISPLAY = {
 
 DISPLAY_COLORS = {MODEL_DISPLAY[k]: v for k, v in WRITER_COLORS.items()}
 
-sns.set_theme(style="whitegrid")
+ps.apply()
 plt.rcParams.update({"figure.max_open_warning": 0})
 
 # ==========================
@@ -285,7 +276,7 @@ def plot_heatmap_gap(tier_df, save_dir):
 
         plt.figure(figsize=(12, 8))
         ax = sns.heatmap(
-            df_plot, annot=df_annot_plot, fmt="", cmap="RdBu_r", center=0,
+            df_plot, annot=df_annot_plot, fmt="", cmap=ps.DIVERGING_CMAP, center=0,
             vmin=shared_vmin, vmax=shared_vmax,
             linewidths=0.5, linecolor="gray",
             annot_kws={"size": fs},
@@ -323,98 +314,39 @@ def plot_heatmap_gap(tier_df, save_dir):
 
 
 def plot_heatmap_gap_combined(tier_df, save_dir):
-    """Both heatmaps side by side, each with its own ordering, shared colorbar."""
+    """Fig. 2: relative preference gap, cover letter only (a) and CV + cover letter (b).
+
+    Blue = the evaluator favours that writer, red = penalises it. Values not
+    significantly different from zero (one-sample t-test across CVs, p >= 0.05)
+    are printed in grey. Self-evaluation cells are outlined.
+    """
     os.makedirs(save_dir, exist_ok=True)
     etypes = ["cl_evaluations", "cv_cl_evaluations"]
-
     built = {et: _gap_matrices_from_df(tier_df, et) for et in etypes}
     if any(v[0] is None for v in built.values()):
         return
+    vmax = max(built[et][0].loc[built[et][2], :].abs().max().max() for et in etypes)
+    vmax = np.ceil(vmax * 10) / 10
 
-    # Shared symmetric scale
-    max_abs = max(
-        built[et][0].loc[built[et][2], :].abs().max().max()
-        for et in etypes
-    )
-    max_abs = np.ceil(max_abs * 20) / 20
-    shared_vmin, shared_vmax = -max_abs, max_abs
-
-    canvas_w = 24
-    title_pt    = print_pt(PANEL_TITLE_PT, canvas_w)
-    label_pt    = print_pt(AXIS_LABEL_PT, canvas_w)
-    tick_pt     = print_pt(DENSE_TICK_PT, canvas_w)
-    square_pt   = print_pt(7.5, canvas_w)
-    annot_pt    = print_pt(5.5, canvas_w)
-    headline_pt = print_pt(HEADLINE_PT, canvas_w)
-
-    fig, axes = plt.subplots(1, 2, figsize=(canvas_w, 9), constrained_layout=True)
-    fig.get_layout_engine().set(wspace=0.08)
-
-    for ax_idx, (ax, etype) in enumerate(zip(axes, etypes)):
+    fig, axes = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 2.75), gridspec_kw={"wspace": 0.62})
+    for ax, etype, letter in zip(axes, etypes, "ab"):
         df, df_annot, sorted_rows, sorted_cols = built[etype]
-        # Values plus the cell labels; "(*)" marks p < 0.05 (bold in the figure)
+        # Values plus the cell labels; "(*)" marks p < 0.05
         df.to_csv(os.path.join(save_dir, f"heatmap_gap_combined_{etype}.csv"))
         df_annot.to_csv(os.path.join(save_dir, f"heatmap_gap_combined_{etype}_labels.csv"))
-        df_plot       = df.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
-        df_annot_plot = df_annot.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
-        sns.heatmap(
-            df_plot, annot=df_annot_plot, fmt="", ax=ax,
-            cmap="RdBu_r", center=0, vmin=shared_vmin, vmax=shared_vmax,
-            linewidths=0.5, linecolor="gray",
-            annot_kws={"size": annot_pt},
-            cbar=False,
-        )
-        # Significance shown as bold numbers (space here is too tight for an
-        # asterisk to read cleanly) — this is the one deliberate exception to
-        # "bold is title-only" elsewhere in the paper.
-        for text in ax.texts:
-            t = text.get_text()
-            if "(*)" in t:
-                text.set_text(t.replace("(*)", ""))
-                text.set_fontweight("bold")
-        # Separator before Average row
-        ax.axhline(len(sorted_rows), color="black", linewidth=2)
-        # Thick border on diagonal cells (self-evaluation) — positions are index-based
-        for e in sorted_rows:
-            if e in sorted_cols:
-                r = list(sorted_rows).index(e)
-                c = list(sorted_cols).index(e)
-                ax.add_patch(plt.Rectangle(
-                    (c, r), 1, 1, fill=False, edgecolor="black", linewidth=3
-                ))
-        ax.set_title(TITLE_MAP[etype], fontsize=title_pt, fontweight="bold", pad=10)
-        ax.set_xlabel("Writer Model", fontsize=label_pt, labelpad=12)
-        ax.set_ylabel("Evaluator Model" if ax_idx == 0 else "", fontsize=label_pt)
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right", fontsize=tick_pt)
-        for tick in ax.get_xticklabels():
-            tick.set_color(DISPLAY_COLORS.get(tick.get_text(), "black"))
-        ytick_info = [(t.get_text(), DISPLAY_COLORS.get(t.get_text(), "black"))
-                      for t in ax.get_yticklabels()]
-        ax.set_yticklabels(
-            ["Avg." if name == "Avg." else "■" for name, _ in ytick_info],
-            rotation=0,
-        )
-        for tick, (name, color) in zip(ax.get_yticklabels(), ytick_info):
-            tick.set_color("black" if tick.get_text() == "Avg." else color)
-            tick.set_fontsize(tick_pt if tick.get_text() == "Avg." else square_pt)
-
-    # Single shared colorbar to the right
-    sm = plt.cm.ScalarMappable(
-        cmap="RdBu_r", norm=plt.Normalize(vmin=shared_vmin, vmax=shared_vmax)
-    )
-    sm.set_array([])
-    cbar = fig.colorbar(sm, ax=axes, shrink=1.0, pad=0.02)
-    cbar.set_label("Relative Preference Gap, 0–10 scale", fontsize=label_pt)
-    cbar.ax.tick_params(labelsize=tick_pt)
-
-    fig.suptitle(
-        "Relative Preference Gap  |  Bold = p < 0.05",
-        fontsize=headline_pt, fontweight="bold",
-    )
-    plt.savefig(os.path.join(save_dir, "heatmap_gap_combined.png"), dpi=150, bbox_inches="tight")
-    plt.close()
+        sig = df_annot.apply(lambda col: col.astype(str).str.contains(r"\(\*\)"))
+        sig.loc["Avg."] = True
+        ps.heatmap(ax, df, ps.DIVERGING_CMAP, -vmax, vmax, sig=sig, display=MODEL_DISPLAY)
+        ax.set_title(TITLE_MAP[etype], loc="left", x=0)
+        ps.panel_label(ax, letter, x=-0.42, y=1.0)
+        ax.set_xlabel("Writer model")
+    axes[0].set_ylabel("Evaluator model")
+    ps.colorbar(fig, axes, ps.DIVERGING_CMAP, -vmax, vmax,
+                "Preference gap (points)", low="penalised", high="favoured")
+    ps.provider_legend(fig, bbox=(0.45, -0.27))
+    fig.savefig(os.path.join(save_dir, "heatmap_gap_combined.png"))
+    plt.close(fig)
     print("  Saved heatmap_gap_combined.png")
-
 
 def compute_win_rate(subset, writers):
     """Head-to-head win rates WR(w1, w2) in percent.
@@ -493,7 +425,7 @@ def plot_win_matrix(df, save_dir):
     fs = plt.rcParams["font.size"] + 3
     fig, ax = plt.subplots(figsize=(12, 9))
     sns.heatmap(
-        df_win, annot=annot_df, fmt="", cmap="RdBu_r", vmin=0, vmax=100, center=50,
+        df_win, annot=annot_df, fmt="", cmap=ps.DIVERGING_CMAP, vmin=0, vmax=100, center=50,
         cbar_kws={"label": "Win Rate %"}, linewidths=0.5, linecolor="gray",
         mask=mask, ax=ax, annot_kws={"size": fs},
     )
@@ -586,7 +518,7 @@ def plot_net_advantage(delta_matrix, p_matrix, raw_matrix, writers, save_dir, st
     df_m_plot = df_m.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
 
     fig, ax = plt.subplots(figsize=(canvas_w, 12.5), constrained_layout=True)
-    sns.heatmap(df_m_plot, annot=annot, fmt="", ax=ax, cmap="RdBu_r", center=0,
+    sns.heatmap(df_m_plot, annot=annot, fmt="", ax=ax, cmap=ps.DIVERGING_CMAP_HARM, center=0,
                 linewidths=0.5, linecolor="gray", cbar=False,
                 annot_kws={"size": annot_pt})
     # seaborn adds cell text in row-major order matching df_m_plot, which is
@@ -615,7 +547,7 @@ def plot_net_advantage(delta_matrix, p_matrix, raw_matrix, writers, save_dir, st
         tick.set_fontsize(tick_pt if tick.get_text() == "Avg." else square_pt)
 
     net_vmax = np.nanmax(np.abs(ext_delta[:-1, :-1]))
-    sm = cm.ScalarMappable(cmap="RdBu_r", norm=mcolors.Normalize(vmin=-net_vmax, vmax=net_vmax))
+    sm = cm.ScalarMappable(cmap=ps.DIVERGING_CMAP_HARM, norm=mcolors.Normalize(vmin=-net_vmax, vmax=net_vmax))
     sm.set_array([])
     cb = fig.colorbar(sm, ax=ax, shrink=0.8)
     cb.set_label("Net Advantage over Control, %", fontsize=label_pt)
@@ -706,7 +638,7 @@ def plot_net_advantage_extreme_evaluators(comp_df, writers, evaluators, save_dir
         df_m_plot = df_m.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
         df_m.to_csv(os.path.join(save_dir, f"net_advantage_extreme_evaluators_{evaluator}.csv"))
 
-        sns.heatmap(df_m_plot, annot=annot, fmt="", cmap="RdBu_r", center=0,
+        sns.heatmap(df_m_plot, annot=annot, fmt="", cmap=ps.DIVERGING_CMAP_HARM, center=0,
                     linewidths=0.5, linecolor="gray", cbar=False,
                     annot_kws={"size": annot_pt}, ax=ax)
         for text in ax.texts:
@@ -727,7 +659,7 @@ def plot_net_advantage_extreme_evaluators(comp_df, writers, evaluators, save_dir
             tick.set_fontsize(tick_pt if tick.get_text() == "Avg." else square_pt)
 
         net_vmax = np.nanmax(np.abs(ext_delta[:-1, :-1]))
-        sm = cm.ScalarMappable(cmap="RdBu_r", norm=mcolors.Normalize(vmin=-net_vmax, vmax=net_vmax))
+        sm = cm.ScalarMappable(cmap=ps.DIVERGING_CMAP_HARM, norm=mcolors.Normalize(vmin=-net_vmax, vmax=net_vmax))
         sm.set_array([])
         cb = fig.colorbar(sm, ax=ax, shrink=0.8)
         cb.set_label("Net Advantage over Control, %", fontsize=label_pt)
@@ -819,117 +751,46 @@ def plot_win_net_combined(tier_df, delta_matrix, p_matrix, raw_matrix, writers_n
     new_ci  = [old_idx[w] for w in sorted_net] + [N]
     annot_net = annot_net[np.ix_(new_ri, new_ci)]
 
-    # Precompute diagonal positions (raw names) before renaming
-    diag_win = [(list(df_win.index).index(w), list(df_win.columns).index(w))
-                for w in writers_win if w in df_win.index and w in df_win.columns]
-    n_win_models = len(sorted_win_models)
-
     df_win.to_csv(os.path.join(save_dir, f"{os.path.splitext(fname)[0]}_win_rate.csv"))
     df_net.to_csv(os.path.join(save_dir, f"{os.path.splitext(fname)[0]}_net_advantage.csv"))
 
-    df_win   = df_win.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
-    annot_win = annot_win.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
-    mask_win  = mask_win.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
-    df_net    = df_net.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
-
     # ── Plot ───────────────────────────────────────────────────────────────────
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(28, 11), constrained_layout=True)
-    fig.get_layout_engine().set(wspace=0.08)
+    # Diagonal (same writer on both sides) is undefined in both panels.
+    df_net_plot = df_net.copy()
+    for w in sorted_net:
+        df_net_plot.loc[w, w] = np.nan
+    sub_net = None
+    if std_matrix is not None:
+        std_sorted = np.asarray(std_matrix)[np.ix_([old_idx[w] for w in sorted_net],
+                                                   [old_idx[w] for w in sorted_net])]
+        sub_net = pd.DataFrame("", index=df_net.index, columns=df_net.columns, dtype=object)
+        for i, r in enumerate(sorted_net):
+            for j, c in enumerate(sorted_net):
+                if i != j and not np.isnan(std_sorted[i, j]):
+                    sub_net.loc[r, c] = f"\u00b1{std_sorted[i, j]:.1f}"
+    net_vmax = np.ceil(np.nanmax(np.abs(ext_delta[:-1, :-1])))
 
-    # Left: win matrix
-    sns.heatmap(
-        df_win, annot=annot_win, fmt="", ax=ax1,
-        cmap="RdBu_r", vmin=0, vmax=100, center=50,
-        linewidths=0.5, linecolor="gray",
-        mask=mask_win, cbar=False,
-        annot_kws={"size": annot_pt},
-    )
-    for ri, ci in diag_win:
-        ax1.add_patch(plt.Rectangle((ci, ri), 1, 1, fill=True, color="lightgrey", lw=0))
-        ax1.text(ci + 0.5, ri + 0.5, "—", ha="center", va="center", fontsize=tick_pt, color="grey")
-    ax1.axhline(n_win_models, color="black", linewidth=2)
-    ax1.axvline(len(df_win.columns) - 1, color="black", linewidth=2)
-    ax1.set_title("Head-to-Head Win Rate", fontsize=title_pt, fontweight="bold", pad=10)
-    ax1.set_xlabel("Opponent Writer Model", fontsize=label_pt, labelpad=12)
-    ax1.set_ylabel("Writer Model", fontsize=label_pt)
-    ax1.set_xticklabels(ax1.get_xticklabels(), rotation=45, ha="right", fontsize=tick_pt)
-    for tick in ax1.get_xticklabels():
-        tick.set_color(DISPLAY_COLORS.get(tick.get_text(), "black"))
-    ytick_info1 = [(t.get_text(), DISPLAY_COLORS.get(t.get_text(), "black"))
-                   for t in ax1.get_yticklabels()]
-    ax1.set_yticklabels(
-        ["Avg." if name == "Avg." else "■" for name, _ in ytick_info1],
-        rotation=0,
-    )
-    for tick, (name, color) in zip(ax1.get_yticklabels(), ytick_info1):
-        tick.set_color("black" if tick.get_text() == "Avg." else color)
-        tick.set_fontsize(tick_pt if tick.get_text() == "Avg." else square_pt)
-    sm1 = plt.cm.ScalarMappable(cmap="RdBu_r", norm=plt.Normalize(0, 100))
-    sm1.set_array([])
-    cb1 = fig.colorbar(sm1, ax=ax1, shrink=0.8)
-    cb1.set_label("Win Rate, %", fontsize=label_pt)
-    cb1.ax.tick_params(labelsize=tick_pt)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 3.35), gridspec_kw={"wspace": 0.95})
+    ps.heatmap(ax1, df_win, ps.DIVERGING_CMAP, 0, 100, display=MODEL_DISPLAY, diag=False,
+               fmt=lambda v: f"{v:.0f}", cell_h=0.85)
+    ax1.set_title("Head-to-head win rate", loc="left", x=0)
+    ax1.set_xlabel("Opponent writer model")
+    ax1.set_ylabel("Writer model")
+    ps.panel_label(ax1, "a", x=-0.42, y=1.0)
+    ps.colorbar(fig, ax1, ps.DIVERGING_CMAP, 0, 100, "Win rate (%)", low="loses", high="wins")
 
-    # Right: net advantage
-    # This panel occupies only about half of the figure's 28in canvas, but
-    # cell text (now two lines, "+X.X" / "±Y.Y", since std_matrix was added)
-    # needs sizing against its OWN width, not the full combined canvas --
-    # otherwise the two-line annotations collide into their neighbors the
-    # same way the fairness heatmap's did. net_annot_pt mirrors
-    # plot_net_advantage's own canvas_w=16 (a close match to this panel's
-    # actual rendered width).
-    net_annot_pt = print_pt(5.5, canvas_w / 2)
-    net_vmax = np.nanmax(np.abs(ext_delta[:-1, :-1]))  # ignore AVERAGE row/col for scale
-    sns.heatmap(
-        df_net, annot=annot_net, fmt="", ax=ax2,
-        cmap="RdBu_r", center=0,
-        linewidths=0.5, linecolor="gray",
-        cbar=False,
-        annot_kws={"size": net_annot_pt},
-    )
-    # seaborn adds cell text in row-major order matching df_net, which is
-    # already sorted so the Avg. row/column are always last (index N).
-    n_cols_net = N + 1
-    for idx, text in enumerate(ax2.texts):
-        if text.get_text() == "—":
-            text.set_color("grey")
-        row, col = idx // n_cols_net, idx % n_cols_net
-        if row == N or col == N:
-            text.set_fontsize(net_annot_pt * 1.5)
-        else:
-            text.set_fontsize(net_annot_pt * 1.25)
-    ax2.axhline(N, color="black", linewidth=2)
-    ax2.axvline(N, color="black", linewidth=2)
-    ax2.set_title("Net Competitive Advantage over Control", fontsize=title_pt, fontweight="bold", pad=10)
-    ax2.set_xlabel(f"{group_labels[1]} Group — Writer Model", fontsize=label_pt, labelpad=12)
-    ax2.set_ylabel(f"{group_labels[0]} Group — Writer Model", fontsize=label_pt)
-    ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45, ha="right", fontsize=tick_pt)
-    for tick in ax2.get_xticklabels():
-        tick.set_color(DISPLAY_COLORS.get(tick.get_text(), "black"))
-    ytick_info2 = [(t.get_text(), DISPLAY_COLORS.get(t.get_text(), "black"))
-                   for t in ax2.get_yticklabels()]
-    ax2.set_yticklabels(
-        ["Avg." if name == "Avg." else "■" for name, _ in ytick_info2],
-        rotation=0,
-    )
-    for tick, (name, color) in zip(ax2.get_yticklabels(), ytick_info2):
-        tick.set_color("black" if tick.get_text() == "Avg." else color)
-        tick.set_fontsize(tick_pt if tick.get_text() == "Avg." else square_pt)
-    sm2 = plt.cm.ScalarMappable(
-        cmap="RdBu_r",
-        norm=plt.Normalize(vmin=-net_vmax, vmax=net_vmax),
-    )
-    sm2.set_array([])
-    cb2 = fig.colorbar(sm2, ax=ax2, shrink=0.8)
-    cb2.set_label("Net Advantage over Control, %", fontsize=label_pt)
-    cb2.ax.tick_params(labelsize=tick_pt)
-
-    fig.suptitle(
-        "Writer Model Competitiveness — CV + Cover Letter",
-        fontsize=headline_pt, fontweight="bold",
-    )
-    plt.savefig(os.path.join(save_dir, fname), dpi=150, bbox_inches="tight")
-    plt.close()
+    ps.heatmap(ax2, df_net_plot, ps.DIVERGING_CMAP_HARM, -net_vmax, net_vmax, display=MODEL_DISPLAY,
+               diag=False, fmt=lambda v: ps.fmt_num(v, 1, strip_zero=False, sign=True),
+               sub=sub_net, cell_h=0.85, text_fs=4.4, sub_fs=3.3)
+    ax2.set_title("Net displacement over same-writer control", loc="left", x=0)
+    ax2.set_xlabel("Writer used by moderate-fit candidates")
+    ax2.set_ylabel("Writer used by high-fit candidates")
+    ps.panel_label(ax2, "b", x=-0.42, y=1.0)
+    ps.colorbar(fig, ax2, ps.DIVERGING_CMAP_HARM, -net_vmax, net_vmax,
+                "Net displacement (pp)", low="fewer", high="more")
+    ps.provider_legend(fig, bbox=(0.45, -0.24))
+    fig.savefig(os.path.join(save_dir, fname))
+    plt.close(fig)
     print(f"  Saved {fname}")
 
 
@@ -1233,95 +1094,44 @@ def plot_fairness_heatmap_combined(df, save_dir):
     for etype, d in panels.items():
         d["mat"].to_csv(os.path.join(save_dir, f"fairness_rank_combined_{etype}.csv"))
 
-    norm = mcolors.Normalize(vmin=-global_vmax, vmax=global_vmax)
-    fig = plt.figure(figsize=(canvas_w, canvas_w * 9 / 32))
-    outer = gridspec.GridSpec(1, 2, figure=fig, width_ratios=[1, 1], wspace=0.4)
-
-    heat_axes, rowbar_axes = [], []
-    for panel_idx, etype in enumerate(etypes):
+    vmax = np.ceil(global_vmax)
+    H = 0.72  # cell height, as in Fig. 2
+    fig = plt.figure(figsize=(ps.FULL_WIDTH, 2.6))
+    outer = gridspec.GridSpec(1, 2, figure=fig, wspace=0.55)
+    heat_axes = []
+    for panel_idx, (etype, letter) in enumerate(zip(etypes, "ab")):
         d = panels[etype]
-        mat, row_order, col_order = d["mat"], d["row_order"], d["col_order"]
-        row_tot = d["row_tot"]
-        n_r, n_c = mat.shape
+        mat, row_order, row_tot = d["mat"], d["row_order"], d["row_tot"]
+        n_c = mat.shape[1]
+        inner = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=outer[0, panel_idx],
+                                                 width_ratios=[n_c, 3.2], wspace=0.06)
+        ax_heat = fig.add_subplot(inner[0, 0]); heat_axes.append(ax_heat)
+        ax_bar = fig.add_subplot(inner[0, 1])
+        ps.heatmap(ax_heat, mat, ps.DIVERGING_CMAP, -vmax, vmax, display=MODEL_DISPLAY,
+                   fmt=lambda v: ps.fmt_num(v, 1, strip_zero=False), cell_h=H, text_fs=4.6)
+        ax_heat.set_title(TITLE_MAP[etype], loc="left", x=0)
+        ax_heat.set_xlabel("Writer model")
+        if panel_idx == 0:
+            ax_heat.set_ylabel("Evaluator model")
+        ps.panel_label(ax_heat, letter, x=-0.5, y=1.0)
 
-        inner = gridspec.GridSpecFromSubplotSpec(
-            1, 2, subplot_spec=outer[0, panel_idx], width_ratios=[n_c, 4.2], wspace=0.08,
-        )
-        ax_heat = fig.add_subplot(inner[0, 0])
-        ax_rowbar = fig.add_subplot(inner[0, 1], sharey=ax_heat)
-        heat_axes.append(ax_heat)
-        rowbar_axes.append(ax_rowbar)
-
-        row_labels = [MODEL_DISPLAY.get(e, e) for e in row_order]
-        col_labels = [MODEL_DISPLAY.get(w, w) for w in col_order]
-
-        # No square=True: ax_heat and ax_rowbar share their y-axis, and each
-        # fills its own GridSpec cell's full height, so dropping the aspect
-        # constraint is what guarantees they render at the same physical height.
-        sns.heatmap(mat, cmap=CMAP, norm=norm, annot=True, fmt=".1f", cbar=False,
-                    ax=ax_heat, linewidths=0.6, linecolor="white",
-                    xticklabels=col_labels, yticklabels=row_labels,
-                    annot_kws={"fontsize": annot_pt})
-
-        # Self-preference diagonal: bold black border on any (evaluator,
-        # writer) cell where the evaluator is scoring its own writing --
-        # same marker convention as Figure 2's self-preference diagonal.
-        for i, e in enumerate(row_order):
-            if e in col_order:
-                j = col_order.index(e)
-                ax_heat.add_patch(plt.Rectangle((j, i), 1, 1, fill=False,
-                                                 edgecolor="black", linewidth=3.2, zorder=5))
-
-        ax_heat.set_xlabel("Writer model", fontsize=(label_pt + 1) * 1.3)
-        ax_heat.set_ylabel("Evaluator model" if panel_idx == 0 else "", fontsize=(label_pt + 1) * 1.3)
-        plt.setp(ax_heat.get_xticklabels(), rotation=45, ha="right", fontsize=tick_pt)
-        plt.setp(ax_heat.get_yticklabels(), fontsize=tick_pt)
-        # Color-code + bold the model-name tick labels, matching the
-        # convention used for evaluator ticks elsewhere in this file.
-        for tick, w in zip(ax_heat.get_xticklabels(), col_order):
-            tick.set_color(WRITER_COLORS.get(w, "black"))
-            tick.set_fontweight("bold")
-        for tick, e in zip(ax_heat.get_yticklabels(), row_order):
-            tick.set_color(WRITER_COLORS.get(e, "black"))
-            tick.set_fontweight("bold")
-        ax_heat.set_title(TITLE_MAP[etype], fontsize=title_pt, fontweight="bold", pad=10)
-
-        # Row-marginal bars (evaluator Total |bias|), real x-axis with gridlines.
-        y_pos = np.arange(n_r) + 0.5
-        bar_vals = row_tot.loc[row_order].values
-        bar_colors = [WRITER_COLORS.get(e, "#2C3E50") for e in row_order]
-        ax_rowbar.barh(y_pos, bar_vals, color=bar_colors, height=0.62, zorder=3,
-                       edgecolor="black", linewidth=0.4)
-        for y, v in zip(y_pos, bar_vals):
-            ax_rowbar.text(v + max(bar_vals) * 0.02, y, f"{v:.1f}", va="center",
-                           fontsize=bar_annot_pt, fontweight="bold", color="#222222")
-        ax_rowbar.set_ylim(ax_heat.get_ylim())
-        ax_rowbar.set_xlim(0, row_tot.max() * 1.18)
-        ax_rowbar.xaxis.grid(True, linestyle="--", alpha=0.4, zorder=0)
-        ax_rowbar.set_axisbelow(True)
-        ax_rowbar.tick_params(axis="y", left=False, labelleft=False)
-        ax_rowbar.tick_params(axis="x", labelsize=tick_pt - 1)
-        for side in ("top", "right", "left"):
-            ax_rowbar.spines[side].set_visible(False)
-        ax_rowbar.set_xlabel("Cumulative $\\sum_w|\\bar g_{e,w}|$", fontsize=label_pt * 1.3)
-        ax_rowbar.set_title("Total |bias|", fontsize=label_pt, fontweight="bold")
-
-    # One shared colorbar, manually positioned just right of the second
-    # panel's bar chart (close, not off at the figure edge).
-    fig.canvas.draw()
-    last_pos = rowbar_axes[-1].get_position()
-    gap, width = 0.012, 0.014
-    cax = fig.add_axes([last_pos.x1 + gap, last_pos.y0, width, last_pos.height])
-    sm = cm.ScalarMappable(norm=norm, cmap=CMAP)
-    sm.set_array([])
-    cb = fig.colorbar(sm, cax=cax)
-    cb.set_label("Rank gap $\\bar g_{e,w}$", fontsize=label_pt * 1.3)
-    cb.ax.tick_params(labelsize=tick_pt - 1)
-
-    fig.suptitle("Cumulative Evaluator Bias (Rank-Based), with Total |bias| per Evaluator",
-                 fontsize=headline_pt, fontweight="bold", y=1.02)
-    plt.savefig(os.path.join(save_dir, "fairness_rank_combined.png"), dpi=150, bbox_inches="tight")
-    plt.close()
+        # Marginal bars: each evaluator's total |rank gap| across writers
+        y_pos = (np.arange(len(row_order)) + 0.5) * H
+        vals = row_tot.loc[row_order].values
+        ax_bar.barh(y_pos, vals, height=H * 0.62, color="#b9b7b0", lw=0)
+        for y, v in zip(y_pos, vals):
+            ax_bar.text(v + vals.max() * 0.03, y, f"{v:.1f}", va="center", fontsize=4.6, color=ps.INK)
+        ax_bar.set_ylim(ax_heat.get_ylim())
+        ax_bar.set_xlim(0, vals.max() * 1.25)
+        ax_bar.tick_params(axis="y", left=False, labelleft=False)
+        ax_bar.spines["left"].set_visible(False)
+        ax_bar.set_xlabel("Total |rank gap|")
+    ps.colorbar(fig, heat_axes[-1], ps.DIVERGING_CMAP, -vmax, vmax,
+                "Rank gap", low="penalised", high="favoured",
+                cax=heat_axes[-1].inset_axes([1.5, 0.08, 0.03, 0.84]))
+    ps.provider_legend(fig, bbox=(0.45, -0.3))
+    fig.savefig(os.path.join(save_dir, "fairness_rank_combined.png"))
+    plt.close(fig)
     print("  Saved fairness_rank_combined.png")
 
 
@@ -1354,7 +1164,7 @@ def plot_agreement_corr(tier_df, save_dir):
                 if label in corr.columns:
                     diag_mask.loc[label, label] = True
         sns.heatmap(corr, annot=annot, fmt="", ax=ax,
-                    cmap="RdBu_r", center=0, vmin=-1, vmax=1,
+                    cmap=ps.DIVERGING_CMAP, center=0, vmin=-1, vmax=1,
                     linewidths=0.5, linecolor="gray",
                     mask=diag_mask if mask_diag else None,
                     annot_kws={"size": annot_pt})
@@ -1540,7 +1350,7 @@ def plot_merit_agreement_combined(tier_df, save_dir):
         is_last = ax_idx == n - 1
         annot = corr.round(2).astype(str)
         sns.heatmap(corr, annot=annot, fmt="", ax=ax,
-                    cmap="RdBu_r", center=0, vmin=-1, vmax=1,
+                    cmap=ps.DIVERGING_CMAP, center=0, vmin=-1, vmax=1,
                     linewidths=0.5, linecolor="gray",
                     annot_kws={"size": annot_pt}, cbar=False)
         ax.set_title(title, fontsize=title_pt, fontweight="bold", pad=10)
@@ -1562,7 +1372,7 @@ def plot_merit_agreement_combined(tier_df, save_dir):
             ax.set_yticks([])
             ax.set_ylabel("")
 
-    sm = plt.cm.ScalarMappable(cmap="RdBu_r", norm=plt.Normalize(vmin=-1, vmax=1))
+    sm = plt.cm.ScalarMappable(cmap=ps.DIVERGING_CMAP, norm=plt.Normalize(vmin=-1, vmax=1))
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=axes, shrink=0.75, pad=0.02)
     cbar.set_label("Spearman ρ", fontsize=label_pt)
@@ -1652,7 +1462,7 @@ def plot_strictness_agreement_combined(tier_df, save_dir):
 
     def _draw_heatmap(ax_heat, corr, cbar_label):
         sns.heatmap(corr, annot=corr.round(2).astype(str), fmt="", ax=ax_heat,
-                    cmap="RdBu_r", center=0, vmin=-1, vmax=1,
+                    cmap=ps.DIVERGING_CMAP, center=0, vmin=-1, vmax=1,
                     linewidths=0.5, linecolor="gray",
                     annot_kws={"size": fs - 1})
         ax_heat.set_title("Evaluator Agreement", fontsize=fs + 5, pad=10)
@@ -1964,7 +1774,7 @@ def plot_intra_run_variance(tier_df, save_dir):
     vmax = np.nanmax(all_vals)
     n_writers = len(RAW_WRITERS)
     n_evals   = len(UNIQUE_EVALUATORS)
-    ylord_cmap = plt.cm.YlOrRd
+    ylord_cmap = plt.get_cmap(ps.SEQUENTIAL_CMAP)
 
     for ax, (etype, title) in zip(axes, cl_conditions):
         mat = matrices[etype]
@@ -1980,7 +1790,7 @@ def plot_intra_run_variance(tier_df, save_dir):
         annot_full = mat_full.round(3).astype(str).replace("nan", "")
 
         sns.heatmap(mat_full, annot=annot_full, fmt="", ax=ax,
-                    cmap="YlOrRd", vmin=vmin, vmax=vmax,
+                    cmap=ps.SEQUENTIAL_CMAP, vmin=vmin, vmax=vmax,
                     linewidths=0.5, linecolor="gray",
                     annot_kws={"size": fs - 1}, cbar=(ax is axes[-1]),
                     mask=avg_mask)

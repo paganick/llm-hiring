@@ -15,6 +15,7 @@ Outputs:
 import os
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats as sst
@@ -29,7 +30,8 @@ from aggregate_plots import (
     TICK_PT_TARGET, DENSE_TICK_PT, ANNOTATION_PT, LEGEND_PT_TARGET, DENSE_ANNOT_PT,
 )
 
-sns.set_theme(style="whitegrid")
+import paper_style as ps
+ps.apply()
 plt.rcParams.update({"figure.max_open_warning": 0})
 
 FEATURES_PATH = "output_eval/cl_features.parquet"
@@ -103,6 +105,12 @@ def _feature_category_name(col):
     if col == "cv_cosine_sim":
         return "CV Consistency"
     return FEATURE_GROUPS_MAP.get(col)
+
+
+CATEGORY_SHORT = {
+    "Job-Ad Fit": "fit", "CV Consistency": "CV fit", "Length & Structure": "length",
+    "Language Complexity": "complexity", "Sentiment & Affect": "sentiment", "Emotions": "emotion",
+}
 
 
 def _feature_name_color(col):
@@ -248,7 +256,7 @@ def _draw_coef_panel(ax, coef_disp, title, show_ylabels, feat_cols):
             annot.loc[r, c] = f"{v:.2f}" if not np.isnan(v) else ""
 
     sns.heatmap(mat.astype(float), annot=annot, fmt="", ax=ax,
-                cmap="RdBu_r", center=0, vmin=-vabs, vmax=vabs,
+                cmap=ps.DIVERGING_CMAP, center=0, vmin=-vabs, vmax=vabs,
                 linewidths=0.4, linecolor="lightgrey",
                 annot_kws={"size": fs + 1}, cbar=False,
                 yticklabels=show_ylabels)
@@ -271,7 +279,7 @@ def plot_coef_heatmap(coef_by_type, feat_cols, suffix, title_note):
     for ax, (eval_type, title) in zip(axes, EVAL_TYPES.items()):
         _draw_coef_panel(ax, coef_by_type[eval_type], title, ax is axes[0], feat_cols)
 
-    sm = plt.cm.ScalarMappable(cmap="RdBu_r", norm=plt.Normalize(vmin=-2.5, vmax=2.5))
+    sm = plt.cm.ScalarMappable(cmap=ps.DIVERGING_CMAP, norm=plt.Normalize(vmin=-2.5, vmax=2.5))
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=axes, orientation="vertical", fraction=0.015, pad=0.02)
     cbar.set_label("Ridge β  (standardised features)", fontsize=fs + 2)
@@ -302,7 +310,7 @@ def _draw_pref_panel(ax, mat, title):
             annot.loc[r, c] = f"{v:.2f}" if not np.isnan(v) else ""
 
     sns.heatmap(mat.astype(float), annot=annot, fmt="", ax=ax,
-                cmap="RdBu_r", center=0, vmin=-vabs, vmax=vabs,
+                cmap=ps.DIVERGING_CMAP, center=0, vmin=-vabs, vmax=vabs,
                 linewidths=0.4, linecolor="lightgrey",
                 annot_kws={"size": fs}, cbar=False)
 
@@ -479,7 +487,7 @@ def _plot_contribution_heatmap(contrib, feat_cols, title, subtitle, out_name, va
     fig, ax = plt.subplots(figsize=(1.1 * mat.shape[1] + 4, 0.55 * mat.shape[0] + 3))
     annot = mat.round(2).astype(str)
     sns.heatmap(mat, annot=annot, fmt="", ax=ax,
-                cmap="RdBu_r", center=0, vmin=-vabs, vmax=vabs,
+                cmap=ps.DIVERGING_CMAP, center=0, vmin=-vabs, vmax=vabs,
                 linewidths=0.4, linecolor="lightgrey",
                 annot_kws={"size": fs - 1},
                 cbar_kws={"label": "Contribution to preference score", "shrink": 0.7})
@@ -1289,101 +1297,54 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
          for i, r in enumerate(rows) for w, (z, zerr) in r["writer_z"].items()]), out_path, "writers")
 
     n = len(rows)
-    canvas_w = 20
-    title_pt    = print_pt(PANEL_TITLE_PT, canvas_w)
-    headline_pt = print_pt(HEADLINE_PT, canvas_w)
-    tick_pt     = print_pt(7.5, canvas_w)  # matches fig 5's row-marker text size
-    xtick_pt    = print_pt(TICK_PT_TARGET, canvas_w)
-    label_pt    = print_pt(AXIS_LABEL_PT, canvas_w)
-    legend_pt   = print_pt(LEGEND_PT_TARGET, canvas_w)
-    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(canvas_w, 0.5 * n + 1.4),
-                                  sharey=True, gridspec_kw={"wspace": 0.35})
-    rows_r = rows
-    for i, r in enumerate(rows_r):
+    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 0.15 * n + 0.75),
+                                  sharey=True, gridspec_kw={"wspace": 0.08})
+    band = {True: "#dbe9f6", False: "#f9dcd6"}   # unanimous reward / penalty (blue = rewarded)
+    for i, r in enumerate(rows):
         if r["unanimous"]:
-            band_color = "#C8E6C9" if r["mean"] >= 0 else "#FFCDD2"
-            ax.axhspan(i - 0.5, i + 0.5, color=band_color, alpha=0.5, zorder=0)
-            ax2.axhspan(i - 0.5, i + 0.5, color=band_color, alpha=0.5, zorder=0)
-        for e, v in r["vals"].items():
-            ax.scatter(v, i, s=110, color=DISPLAY_COLORS.get(MODEL_DISPLAY[e], "grey"),
-                       edgecolor="white", linewidth=0.6, alpha=0.75, zorder=3)
-        # Cross-evaluator mean: a short vertical bar confined to this row,
-        # rather than a big diamond that visually dominates the row.
-        ax.plot([r["mean"], r["mean"]], [i - 0.32, i + 0.32],
-               color="black", linewidth=3.2, solid_capstyle="butt", zorder=4)
+            for a_ in (ax, ax2):
+                a_.axhspan(i - 0.5, i + 0.5, color=band[r["mean"] >= 0], lw=0, zorder=0)
+        ax.scatter(list(r["vals"].values()), [i] * len(r["vals"]), s=9, color="#8f8d87",
+                   edgecolor="white", linewidth=0.3, zorder=3)
+        ax.plot([r["mean"], r["mean"]], [i - 0.36, i + 0.36], color=ps.INK, lw=1.4,
+                solid_capstyle="butt", zorder=4)
         for w, (z, zerr) in r["writer_z"].items():
-            ax2.errorbar(z, i, xerr=zerr, fmt="o", markersize=9.5, capsize=3,
-                        color=WRITER_COLORS.get(w, "grey"), ecolor=WRITER_COLORS.get(w, "grey"),
-                        markeredgecolor="white", markeredgewidth=0.6, alpha=0.85, zorder=3)
-    ax.axvline(0, color="black", linewidth=1, linestyle="--", alpha=0.6)
-    ax2.axvline(0, color="black", linewidth=1, linestyle="--", alpha=0.6)
-
+            c = WRITER_COLORS.get(w, "grey")
+            ax2.errorbar(z, i, xerr=zerr, fmt="o", ms=2.6, capsize=0, elinewidth=0.5,
+                         color=c, ecolor=c, alpha=0.9, markeredgewidth=0, zorder=3)
+    for a_ in (ax, ax2):
+        a_.axvline(0, color=ps.INK_2, lw=0.5, ls=(0, (2, 2)), zorder=1)
+        a_.grid(axis="x"); a_.set_axisbelow(True)
+        a_.spines["left"].set_visible(False)
+    ax.set_ylim(-0.6, n - 0.4)
     ax.set_yticks(range(n))
-    ax.set_yticklabels([r["label"] for r in rows_r], fontsize=tick_pt)
-    for tick, r in zip(ax.get_yticklabels(), rows_r):
-        tick.set_color(_feature_name_color(r["feature"]))
-    ax.tick_params(axis="x", labelsize=xtick_pt)
-    ax2.tick_params(axis="x", labelsize=xtick_pt, labelleft=False)
-    ax.set_xlabel("Ridge coefficient (standardised feature -> Score, within-job demeaned)",
-                  fontsize=label_pt)
-    ax2.set_xlabel("Writer's own mean $\\pm$ 1 std  (standard-deviation units)",
-                   fontsize=label_pt)
-    ax.set_title("How Much Evaluators Reward It\n(sorted by cross-evaluator mean)",
-                fontsize=title_pt, fontweight="bold", pad=14)
-    ax2.set_title("How Much Writers Actually Use It", fontsize=title_pt,
-                  fontweight="bold", pad=14)
-    ax.grid(axis="x", alpha=0.3)
-    ax2.grid(axis="x", alpha=0.3)
-    ax.set_axisbelow(True)
-    ax2.set_axisbelow(True)
+    ax.set_yticklabels([ps.sentence_case(r["label"]) for r in rows])
+    ax.tick_params(axis="y", length=0, pad=34)
+    for i, r in enumerate(rows):   # muted category tag between label and panel
+        ax.text(-0.012, i, CATEGORY_SHORT.get(_feature_category_name(r["feature"]), ""),
+                transform=mpl.transforms.blended_transform_factory(ax.transAxes, ax.transData),
+                ha="right", va="center", fontsize=ps.FS_TINY, color=ps.INK_MUTED, style="italic")
+    ax2.tick_params(axis="y", length=0)
+    ax.set_xlabel("Ridge coefficient (standardised feature \u2192 score)")
+    ax2.set_xlabel("Writer's mean \u00b1 1 s.d. (standardised)")
+    ax.set_title("How much evaluators reward each feature", loc="left", x=0)
+    ax2.set_title("How much writers use it", loc="left", x=0)
+    ps.panel_label(ax, "a", x=-0.62, y=1.0)
+    ps.panel_label(ax2, "b", x=-0.03, y=1.0)
 
-    # Model legend (writer identity colours) sits INSIDE the left panel's
-    # own axes, bottom-right corner — it labels ax's dots, and that corner
-    # is clear of data (low-ranked/negative rows sit at the bottom, but the
-    # dot cloud for those rows still hugs x=0, leaving the corner free).
-    model_handles = [Patch(facecolor=DISPLAY_COLORS.get(MODEL_DISPLAY[w], "grey"), label=MODEL_DISPLAY[w])
-                      for w in RAW_WRITERS]
-    ax.legend(handles=model_handles, loc="lower right", ncol=1, fontsize=legend_pt,
-              frameon=True, framealpha=0.9, borderpad=0.9,
-              title="Writer model", title_fontsize=legend_pt + 1)
-
-    # Marker/shading legend (individual evaluator / cross-evaluator mean /
-    # unanimous shading) and the feature-category legend both sit OUTSIDE
-    # the axes, stacked in one vertical column to the right of the right
-    # panel — never covering a data point in either panel. Feature category
-    # goes directly below the marker/shading legend. Only categories
-    # actually present among feat_cols are listed — e.g. CV Consistency has
-    # no row at all when cv_cosine_sim is excluded.
-    legend_handles = [
-        Line2D([0], [0], marker="o", linestyle="none", markersize=11,
-               markerfacecolor="grey", markeredgecolor="white", alpha=0.75,
-               label="Individual evaluator (left)"),
-        Line2D([0], [0], marker="|", linestyle="none", markersize=18, markeredgewidth=3.2,
-               markerfacecolor="black", markeredgecolor="black",
-               label="Cross-evaluator mean (left)"),
-        Line2D([0], [0], marker="o", linestyle="none", markersize=11,
-               markerfacecolor="grey", markeredgecolor="white", alpha=0.85,
-               label="Individual writer, mean $\\pm$ std (right)"),
-        Patch(facecolor="#C8E6C9", alpha=0.5, label="Unanimous reward"),
-        Patch(facecolor="#FFCDD2", alpha=0.5, label="Unanimous penalty"),
+    handles = [
+        Line2D([0], [0], marker="o", ls="none", ms=3, markerfacecolor="#8f8d87", markeredgewidth=0, label="Evaluator"),
+        Line2D([0], [0], marker="|", ls="none", ms=6, markeredgewidth=1.4, color=ps.INK, label="Mean across evaluators"),
+        Patch(facecolor=band[True], label="All evaluators reward"),
+        Patch(facecolor=band[False], label="All evaluators penalise"),
     ]
-    marker_legend = ax2.legend(handles=legend_handles, loc="upper left",
-                               bbox_to_anchor=(1.03, 1.0), fontsize=legend_pt,
-                               frameon=True, framealpha=0.9, borderpad=0.9, ncol=1)
-    ax2.add_artist(marker_legend)
-
-    present_cats = {_feature_category_name(f) for f in feat_cols}
-    category_handles = [Patch(facecolor=c, label=cat) for cat, c in FEATURE_CATEGORY_COLORS.items()
-                        if cat in present_cats]
-    ax2.legend(handles=category_handles, loc="upper left", bbox_to_anchor=(1.03, 0.6),
-              fontsize=legend_pt, frameon=True, framealpha=0.9, borderpad=0.9,
-              title="Feature category (row label colour)", title_fontsize=legend_pt + 1, ncol=1)
-
-    fig.suptitle("Evaluator Feature Rewards vs. Writer Feature Usage, Ranked by Reward"
-                f"{title_note}",
-                fontsize=headline_pt, fontweight="bold", y=1.0)
-    fig.tight_layout(rect=[0, 0, 0.99, 0.95])
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    writer_handles = [Line2D([0], [0], marker="o", ls="none", ms=3, color=WRITER_COLORS[w],
+                             markeredgewidth=0, label=MODEL_DISPLAY[w]) for w in RAW_WRITERS]
+    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.32, 0.0), ncol=2,
+               handlelength=1.0, columnspacing=1.0, fontsize=ps.FS_TINY + 0.5)
+    fig.legend(handles=writer_handles, loc="upper center", bbox_to_anchor=(0.74, 0.0), ncol=3,
+               handlelength=0.8, columnspacing=0.8, fontsize=ps.FS_TINY + 0.5)
+    fig.savefig(out_path)
     plt.close(fig)
     print(f"  Saved {os.path.basename(out_path)}")
 

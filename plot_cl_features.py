@@ -16,7 +16,8 @@ import seaborn as sns
 
 from aggregate_plots import WRITER_COLORS, MODEL_DISPLAY, DISPLAY_COLORS, UNIQUE_EVALUATORS
 
-sns.set_theme(style="whitegrid")
+import paper_style as ps
+ps.apply()
 plt.rcParams.update({"figure.max_open_warning": 0})
 
 IN_PATH = "output_eval/cl_features.parquet"
@@ -370,7 +371,7 @@ def plot_emotion_heatmap(df: pd.DataFrame, save_dir: str):
         )
         annot = mat.round(2).astype(str)
         sns.heatmap(mat, annot=annot, fmt="", ax=ax,
-                    cmap="YlOrRd", vmin=0, vmax=mat.values.max() * 1.05,
+                    cmap=ps.SEQUENTIAL_CMAP, vmin=0, vmax=mat.values.max() * 1.05,
                     linewidths=0.5, linecolor="white",
                     annot_kws={"size": fs + 1},
                     cbar_kws={"label": "Mean probability", "shrink": 0.7})

@@ -34,7 +34,8 @@ from aggregate_plots import (
     TICK_PT_TARGET, DENSE_TICK_PT, LEGEND_PT_TARGET, DENSE_ANNOT_PT,
 )
 
-sns.set_theme(style="whitegrid")
+import paper_style as ps
+ps.apply()
 plt.rcParams.update({"figure.max_open_warning": 0})
 
 IN_PATH = "output_eval/cl_features.parquet"
@@ -357,7 +358,7 @@ def plot_between_deviation_standalone(between: pd.DataFrame):
     fig, ax = plt.subplots(figsize=(16, 14))
     _draw_heatmap(ax, between.T,
                   "Between-Model Deviation\n(z-score of model mean vs. global mean)",
-                  cmap="RdBu_r", vmin=-1.5, vmax=1.5, center=0,
+                  cmap=ps.DIVERGING_CMAP, vmin=-1.5, vmax=1.5, center=0,
                   cbar_label="z-score", show_yticklabels=True,
                   add_avg_col=False, add_avg_row=False, add_spacer_row=False)
     fig.tight_layout(rect=[0.06, 0, 1, 0.97])
@@ -388,7 +389,7 @@ def plot_tier_effect_heatmap(tier: pd.DataFrame):
     vabs  = 0.5
     annot = mat.round(2).astype(str)
     sns.heatmap(mat, annot=annot, fmt="", ax=ax,
-                cmap="RdBu_r", center=0, vmin=-vabs, vmax=vabs,
+                cmap=ps.DIVERGING_CMAP, center=0, vmin=-vabs, vmax=vabs,
                 linewidths=0.4, linecolor="lightgrey",
                 annot_kws={"size": annot_pt},
                 cbar_kws={"label": "Cohen's d  (High-Fit − Moderate-Fit)", "shrink": 0.7})
@@ -435,19 +436,19 @@ def plot_heatmaps(eta2: pd.DataFrame, within_gstd: pd.DataFrame, tier: pd.DataFr
 
     _draw_heatmap(axes[0], within_gstd.T,
                   "Intra-Model Variability\n(within-job std / global std)",
-                  cmap="YlOrRd", vmin=0, vmax=1, center=0.5,
+                  cmap=ps.SEQUENTIAL_CMAP, vmin=0, vmax=1, center=0.5,
                   cbar_label="Within-job std / global std", show_yticklabels=True,
                   add_avg_col=True, add_avg_row=True)
 
     _draw_heatmap(axes[1], tier.T,
                   "Tier Sensitivity\n(Cohen's d: High-Fit − Moderate-Fit)",
-                  cmap="RdBu_r", vmin=-0.5, vmax=0.5, center=0,
+                  cmap=ps.DIVERGING_CMAP, vmin=-0.5, vmax=0.5, center=0,
                   cbar_label="Cohen's d", show_yticklabels=False,
                   add_avg_col=True, add_avg_row=True)
 
     _draw_heatmap(axes[2], eta2.T,
                   "Tier-Explained Variance\n(η²: fraction of within-job var. explained by tier)",
-                  cmap="YlOrRd", vmin=0, vmax=0.5, center=0.25,
+                  cmap=ps.SEQUENTIAL_CMAP, vmin=0, vmax=0.5, center=0.25,
                   cbar_label="η²", show_yticklabels=False,
                   add_avg_col=True, add_avg_row=False, add_spacer_row=True)
 
@@ -562,7 +563,7 @@ def plot_cross_model_similarity(mean_mat: pd.DataFrame, std_mat: pd.DataFrame):
     )
 
     sns.heatmap(mean_mat.astype(float), annot=annot, fmt="", ax=ax,
-                cmap="YlOrRd", vmin=0.5, vmax=1.0,
+                cmap=ps.SEQUENTIAL_CMAP, vmin=0.5, vmax=1.0,
                 linewidths=0.5, linecolor="white",
                 annot_kws={"size": fs + 1},
                 cbar_kws={"label": "Mean cosine similarity", "shrink": 0.7})
