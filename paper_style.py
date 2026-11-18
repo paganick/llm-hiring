@@ -12,6 +12,8 @@ dE_OKLab x100 = 8.8, normal vision 18.4). Locally hosted models share a
 neutral dark grey, so the paper's API-vs-local contrast is visible at a glance.
 Text always stays in neutral ink; colour sits on small swatches next to it.
 """
+import numpy as np
+import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -227,3 +229,100 @@ def sentence_case(s):
     for k, w in enumerate(words):
         out.append("-".join(fix(p, k == 0 and j == 0) for j, p in enumerate(w.split("-"))))
     return " ".join(out)
+
+
+# ---------------------------------------------------------------------------
+# 2026-11-18 redesign (Fig. 2 dot plot, tile matrices): red = favoured.
+# ---------------------------------------------------------------------------
+from matplotlib.colors import LinearSegmentedColormap as _LSC
+from matplotlib.patches import FancyBboxPatch as _FBP
+
+FAV, PEN = "#a8341f", "#2c5d8f"            # favoured / penalised ink
+FAV_BG, PEN_BG = "#fbf1ec", "#eef3f8"      # matching background washes
+# Soft diverging map, blue (low) -> warm white -> red (high).
+GAP_CMAP = _LSC.from_list("gap", ["#2c5d8f", "#7fa8cc", "#d6e3ee", "#f7f7f5",
+                                  "#f3d9cc", "#d9876a", "#a8341f"])
+
+
+def tile_matrix(ax, df, cmap, vmin, vmax, sig=None, fmt="{:.2f}", fs=4.6,
+                self_outline=True, row_colors=None, col_colors=None,
+                row_names=None, col_names=None, dark_at=0.56):
+    """Matrix as rounded tiles separated by white gaps (no grid lines).
+
+    sig: boolean frame like df; True = bold ink, False = faded grey text.
+    self_outline: outline cells where the row label equals the column label.
+    row/col_colors: dict label -> colour for the tick labels.
+    dark_at: |normalised value| above which text turns white.
+    """
+    nr, nc = df.shape
+    for i, r in enumerate(df.index):
+        for j, c in enumerate(df.columns):
+            v = df.iloc[i, j]
+            if pd.isna(v):
+                continue
+            t = (v - vmin) / (vmax - vmin)
+            ax.add_patch(_FBP((j - 0.44, i - 0.40), 0.88, 0.80,
+                              boxstyle="round,pad=0,rounding_size=0.12", fc=cmap(t), ec="none"))
+            if self_outline and r == c:
+                ax.add_patch(_FBP((j - 0.47, i - 0.43), 0.94, 0.86,
+                                  boxstyle="round,pad=0,rounding_size=0.14", fc="none", ec=INK, lw=0.8))
+            s = True if sig is None else bool(sig.iloc[i, j])
+            dark = abs(t - 0.5) * 2 > dark_at
+            txt = fmt.format(v)
+            if txt in ("-0.00", "+0.00", "-0.0", "+0.0"):
+                txt = txt[1:]
+            ax.text(j, i, txt, ha="center", va="center", fontsize=fs,
+                    color=("white" if dark else INK) if s else ("#e4e4e4" if dark else INK_MUTED),
+                    fontweight="bold" if s else "normal")
+    ax.set_xlim(-0.5, nc - 0.5)
+    ax.set_ylim(nr - 0.5, -0.5)
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    ax.tick_params(length=0)
+    ax.set_yticks(range(nr))
+    ax.set_yticklabels([(row_names or {}).get(r, r) for r in df.index])
+    ax.set_xticks(range(nc))
+    ax.set_xticklabels([(col_names or {}).get(c, c) for c in df.columns],
+                       rotation=40, ha="right", rotation_mode="anchor")
+    for t, r in zip(ax.get_yticklabels(), df.index):
+        t.set_color((row_colors or {}).get(r, INK))
+    for t, c in zip(ax.get_xticklabels(), df.columns):
+        t.set_color((col_colors or {}).get(c, INK))
+
+
+def margin_bars(axb, values, cmap, vmin, vmax, ylim, fmt="{:.2f}", fs=4.6, label="Avg."):
+    """Bar chart above a tile matrix (one bar per column), coloured by the same map."""
+    x = np.arange(len(values))
+    axb.bar(x, values, width=0.62, color=[cmap((v - vmin) / (vmax - vmin)) for v in values], lw=0)
+    axb.axhline(0, color=INK_2, lw=0.5)
+    pad = 0.06 * (ylim[1] - ylim[0])
+    for j, v in enumerate(values):
+        axb.text(j, v + (pad if v >= 0 else -pad), fmt.format(v), ha="center",
+                 va="bottom" if v >= 0 else "top", fontsize=fs, color=INK_2)
+    axb.set_ylim(*ylim)
+    axb.spines["bottom"].set_visible(False)
+    axb.spines["top"].set_visible(False)
+    axb.spines["right"].set_visible(False)
+    axb.tick_params(axis="x", length=0, labelbottom=False)
+    axb.set_ylabel(label)
+
+
+def side_bars(axr, values, colors, xlim, fmt="{:.1f}", fs=4.6, base=0.0, label=None):
+    """Horizontal bars to the right of a tile matrix (one per row), drawn from `base`.
+
+    Row i sits at y = i, matching tile_matrix's coordinates.
+    """
+    y = np.arange(len(values))
+    axr.barh(y, np.asarray(values) - base, left=base, height=0.62, color=colors, lw=0)
+    axr.axvline(base, color=INK_2, lw=0.5)
+    pad = 0.03 * (xlim[1] - xlim[0])
+    for yi, v in zip(y, values):
+        axr.text(v + (pad if v >= base else -pad), yi, fmt.format(v), va="center",
+                 ha="left" if v >= base else "right", fontsize=fs, color=INK)
+    axr.set_xlim(*xlim)
+    axr.set_ylim(len(values) - 0.5, -0.5)
+    axr.tick_params(axis="y", left=False, labelleft=False)
+    for side in ("left", "top", "right"):
+        axr.spines[side].set_visible(False)
+    if label:
+        axr.set_xlabel(label)

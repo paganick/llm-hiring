@@ -1297,52 +1297,56 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
          for i, r in enumerate(rows) for w, (z, zerr) in r["writer_z"].items()]), out_path, "writers")
 
     n = len(rows)
-    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 0.15 * n + 0.75),
-                                  sharey=True, gridspec_kw={"wspace": 0.08})
-    band = {True: "#dbe9f6", False: "#f9dcd6"}   # unanimous reward / penalty (blue = rewarded)
+    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 0.14 * n + 1.0), sharey=True,
+                                  gridspec_kw=dict(wspace=0.06, width_ratios=[1.15, 1],
+                                                   left=0.15, right=0.985, top=0.93, bottom=0.2))
+    rng = np.random.default_rng(1)   # small vertical jitter, fixed for reproducibility
     for i, r in enumerate(rows):
-        if r["unanimous"]:
+        cat_col = _feature_name_color(r["feature"])
+        if r["unanimous"]:   # unanimous reward = red wash, unanimous penalty = blue wash
             for a_ in (ax, ax2):
-                a_.axhspan(i - 0.5, i + 0.5, color=band[r["mean"] >= 0], lw=0, zorder=0)
-        ax.scatter(list(r["vals"].values()), [i] * len(r["vals"]), s=9, color="#8f8d87",
-                   edgecolor="white", linewidth=0.3, zorder=3)
-        ax.plot([r["mean"], r["mean"]], [i - 0.36, i + 0.36], color=ps.INK, lw=1.4,
+                a_.axhspan(i - 0.5, i + 0.5, color=ps.FAV_BG if r["mean"] >= 0 else ps.PEN_BG,
+                           lw=0, zorder=0)
+        v = np.array(list(r["vals"].values()))
+        ax.plot([v.min(), v.max()], [i, i], color="#c8c8c8", lw=1.6, solid_capstyle="round", zorder=2)
+        ax.scatter(v, i + rng.uniform(-0.13, 0.13, len(v)), s=5, fc=ps.INK_2, ec=ps.INK_2,
+                   lw=0.4, alpha=0.8, zorder=3)
+        ax.plot([r["mean"]] * 2, [i - 0.34, i + 0.34], color=cat_col, lw=2.2,
                 solid_capstyle="butt", zorder=4)
-        for w, (z, zerr) in r["writer_z"].items():
-            c = WRITER_COLORS.get(w, "grey")
-            ax2.errorbar(z, i, xerr=zerr, fmt="o", ms=2.6, capsize=0, elinewidth=0.5,
-                         color=c, ecolor=c, alpha=0.9, markeredgewidth=0, zorder=3)
+        z = {w: zz for w, (zz, _) in r["writer_z"].items()}
+        zv = np.array(list(z.values()))
+        ax2.plot([zv.min(), zv.max()], [i, i], color="#c8c8c8", lw=1.6, solid_capstyle="round", zorder=2)
+        for w, zz in z.items():
+            ax2.scatter(zz, i, s=9, fc=WRITER_COLORS.get(w, "grey"), ec="white", lw=0.3, zorder=3)
     for a_ in (ax, ax2):
-        a_.axvline(0, color=ps.INK_2, lw=0.5, ls=(0, (2, 2)), zorder=1)
-        a_.grid(axis="x"); a_.set_axisbelow(True)
-        a_.spines["left"].set_visible(False)
+        a_.axvline(0, color=ps.INK_2, lw=0.5, zorder=1)
+        for side in ("left", "top", "right"):
+            a_.spines[side].set_visible(False)
+        a_.tick_params(axis="y", length=0)
     ax.set_ylim(-0.6, n - 0.4)
     ax.set_yticks(range(n))
     ax.set_yticklabels([ps.sentence_case(r["label"]) for r in rows])
-    ax.tick_params(axis="y", length=0, pad=34)
-    for i, r in enumerate(rows):   # muted category tag between label and panel
-        ax.text(-0.012, i, CATEGORY_SHORT.get(_feature_category_name(r["feature"]), ""),
-                transform=mpl.transforms.blended_transform_factory(ax.transAxes, ax.transData),
-                ha="right", va="center", fontsize=ps.FS_TINY, color=ps.INK_MUTED, style="italic")
-    ax2.tick_params(axis="y", length=0)
+    for t, r in zip(ax.get_yticklabels(), rows):
+        t.set_color(_feature_name_color(r["feature"]))
     ax.set_xlabel("Ridge coefficient (standardised feature \u2192 score)")
-    ax2.set_xlabel("Writer's mean \u00b1 1 s.d. (standardised)")
+    ax2.set_xlabel("Writer's mean use (standardised)")
     ax.set_title("How much evaluators reward each feature", loc="left", x=0)
     ax2.set_title("How much writers use it", loc="left", x=0)
-    ps.panel_label(ax, "a", x=-0.62, y=1.0)
+    ps.panel_label(ax, "a", x=-0.36, y=1.0)
     ps.panel_label(ax2, "b", x=-0.03, y=1.0)
 
-    handles = [
-        Line2D([0], [0], marker="o", ls="none", ms=3, markerfacecolor="#8f8d87", markeredgewidth=0, label="Evaluator"),
-        Line2D([0], [0], marker="|", ls="none", ms=6, markeredgewidth=1.4, color=ps.INK, label="Mean across evaluators"),
-        Patch(facecolor=band[True], label="All evaluators reward"),
-        Patch(facecolor=band[False], label="All evaluators penalise"),
-    ]
+    cats = []
+    for r in rows:
+        c = _feature_category_name(r["feature"])
+        if c not in cats:
+            cats.append(c)
+    cat_handles = [Patch(facecolor=FEATURE_CATEGORY_COLORS[c], label=c)
+                   for c in FEATURE_CATEGORY_COLORS if c in cats]
     writer_handles = [Line2D([0], [0], marker="o", ls="none", ms=3, color=WRITER_COLORS[w],
                              markeredgewidth=0, label=MODEL_DISPLAY[w]) for w in RAW_WRITERS]
-    fig.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.32, 0.0), ncol=2,
-               handlelength=1.0, columnspacing=1.0, fontsize=ps.FS_TINY + 0.5)
-    fig.legend(handles=writer_handles, loc="upper center", bbox_to_anchor=(0.74, 0.0), ncol=3,
+    fig.legend(handles=cat_handles, loc="upper center", bbox_to_anchor=(0.3, 0.075), ncol=2,
+               handlelength=0.8, handleheight=0.8, columnspacing=1.0, fontsize=ps.FS_TINY + 0.5)
+    fig.legend(handles=writer_handles, loc="upper center", bbox_to_anchor=(0.76, 0.075), ncol=3,
                handlelength=0.8, columnspacing=0.8, fontsize=ps.FS_TINY + 0.5)
     fig.savefig(out_path)
     plt.close(fig)

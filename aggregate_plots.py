@@ -314,11 +314,13 @@ def plot_heatmap_gap(tier_df, save_dir):
 
 
 def plot_heatmap_gap_combined(tier_df, save_dir):
-    """Fig. 2: relative preference gap, cover letter only (a) and CV + cover letter (b).
+    """Supplementary figure: full evaluator x writer relative preference gap matrix,
+    cover letter only (a) and CV + cover letter (b).
 
-    Red = the evaluator favours that writer, blue = penalises it (as in Fig. 2). Values not
-    significantly different from zero (one-sample t-test across CVs, p >= 0.05)
-    are printed in grey. Self-evaluation cells are outlined.
+    Red = the evaluator favours that writer, blue = penalises it (as in Fig. 2).
+    Bold values are significant (one-sample t-test across CVs, p < 0.05), faded
+    grey ones are not. Self-evaluation cells are outlined. Bars on top: average
+    over evaluators.
     """
     os.makedirs(save_dir, exist_ok=True)
     etypes = ["cl_evaluations", "cv_cl_evaluations"]
@@ -328,28 +330,35 @@ def plot_heatmap_gap_combined(tier_df, save_dir):
     vmax = max(built[et][0].loc[built[et][2], :].abs().max().max() for et in etypes)
     vmax = np.ceil(vmax * 10) / 10
 
-    fig, axes = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 2.75), gridspec_kw={"wspace": 0.62})
-    for ax, etype, letter in zip(axes, etypes, "ab"):
+    fig = plt.figure(figsize=(ps.FULL_WIDTH, 3.05))
+    gs = fig.add_gridspec(2, 2, height_ratios=[1, 3.4], hspace=0.06, wspace=0.45,
+                          left=0.135, right=0.985, top=0.93, bottom=0.2)
+    ylim_bar = (-np.ceil(vmax * 10) / 10 + 0.0, np.ceil(vmax * 10) / 10)
+    for k, (etype, letter) in enumerate(zip(etypes, "ab")):
         df, df_annot, sorted_rows, sorted_cols = built[etype]
         # Values plus the cell labels; "(*)" marks p < 0.05
         df.to_csv(os.path.join(save_dir, f"heatmap_gap_combined_{etype}.csv"))
         df_annot.to_csv(os.path.join(save_dir, f"heatmap_gap_combined_{etype}_labels.csv"))
-        sig = df_annot.apply(lambda col: col.astype(str).str.contains(r"\(\*\)"))
-        sig.loc["Avg."] = True
-        ps.heatmap(ax, df, "RdBu_r", -vmax, vmax, sig=sig, display=MODEL_DISPLAY)
-        ax.set_title(TITLE_MAP[etype], loc="left", x=0)
-        ps.panel_label(ax, letter, x=-0.42, y=1.0)
-        ax.set_xlabel("Writer model")
-    axes[0].set_ylabel("Evaluator model")
-    ps.colorbar(fig, axes, "RdBu_r", -vmax, vmax,
-                "Preference gap (points)", low="penalised", high="favoured")
-    ps.provider_legend(fig, bbox=(0.45, -0.27))
+        mat = df.drop(index="Avg.")
+        sig = df_annot.drop(index="Avg.").apply(lambda col: col.astype(str).str.contains(r"\(\*\)"))
+        axb = fig.add_subplot(gs[0, k])
+        ax = fig.add_subplot(gs[1, k], sharex=axb)
+        ps.tile_matrix(ax, mat, ps.GAP_CMAP, -vmax, vmax, sig=sig,
+                       row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
+                       row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY)
+        ps.margin_bars(axb, df.loc["Avg."].values, ps.GAP_CMAP, -vmax, vmax, ylim=(-0.62, 0.62))
+        axb.set_yticks([-0.5, 0, 0.5])
+        axb.set_title(TITLE_MAP[etype], loc="left", x=0)
+        ps.panel_label(axb, letter, x=-0.3, y=1.0)
+        ax.set_xlabel("Writer")
+        if k == 0:
+            ax.set_ylabel("Evaluator")
     fig.savefig(os.path.join(save_dir, "heatmap_gap_combined.png"))
     plt.close(fig)
     print("  Saved heatmap_gap_combined.png")
 
-GAP_FAV, GAP_PEN = "#a8341f", "#2c5d8f"            # red = favoured, blue = penalised
-GAP_FAV_BG, GAP_PEN_BG = "#fbf1ec", "#eef3f8"
+GAP_FAV, GAP_PEN = ps.FAV, ps.PEN               # red = favoured, blue = penalised
+GAP_FAV_BG, GAP_PEN_BG = ps.FAV_BG, ps.PEN_BG
 
 
 def plot_gap_dotplot_combined(tier_df, save_dir):
@@ -851,25 +860,48 @@ def plot_win_net_combined(tier_df, delta_matrix, p_matrix, raw_matrix, writers_n
                     sub_net.loc[r, c] = f"\u00b1{std_sorted[i, j]:.1f}"
     net_vmax = np.ceil(np.nanmax(np.abs(ext_delta[:-1, :-1])))
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 3.35), gridspec_kw={"wspace": 0.95})
-    ps.heatmap(ax1, df_win, ps.DIVERGING_CMAP, 0, 100, display=MODEL_DISPLAY, diag=False,
-               fmt=lambda v: f"{v:.0f}", cell_h=0.85)
-    ax1.set_title("Head-to-head win rate", loc="left", x=0)
-    ax1.set_xlabel("Opponent writer model")
-    ax1.set_ylabel("Writer model")
-    ps.panel_label(ax1, "a", x=-0.42, y=1.0)
-    ps.colorbar(fig, ax1, ps.DIVERGING_CMAP, 0, 100, "Win rate (%)", low="loses", high="wins")
+    if std_matrix is not None:
+        pd.DataFrame(std_sorted, index=sorted_net, columns=sorted_net).to_csv(
+            os.path.join(save_dir, f"{os.path.splitext(fname)[0]}_net_advantage_std.csv"))
+    win_mat = df_win.loc[sorted_win_models, sorted_win_models]
+    win_avg = df_win.loc[sorted_win_models, "Avg."].values
+    net_mat = df_net_plot.loc[sorted_net, sorted_net]
+    net_row = df_net.loc[sorted_net, "Avg."].values
+    net_col = df_net.loc["Avg.", sorted_net].values
 
-    ps.heatmap(ax2, df_net_plot, ps.DIVERGING_CMAP_HARM, -net_vmax, net_vmax, display=MODEL_DISPLAY,
-               diag=False, fmt=lambda v: ps.fmt_num(v, 1, strip_zero=False, sign=True),
-               sub=sub_net, cell_h=0.85, text_fs=4.4, sub_fs=3.3)
-    ax2.set_title("Net displacement over same-writer control", loc="left", x=0)
-    ax2.set_xlabel("Writer used by moderate-fit candidates")
-    ax2.set_ylabel("Writer used by high-fit candidates")
-    ps.panel_label(ax2, "b", x=-0.42, y=1.0)
-    ps.colorbar(fig, ax2, ps.DIVERGING_CMAP_HARM, -net_vmax, net_vmax,
-                "Net displacement (pp)", low="fewer", high="more")
-    ps.provider_legend(fig, bbox=(0.45, -0.24))
+    fig = plt.figure(figsize=(ps.FULL_WIDTH, 3.25))
+    gs = fig.add_gridspec(2, 5, height_ratios=[1, 3.6], width_ratios=[11, 3.2, 7.2, 11, 3.2],
+                          hspace=0.05, wspace=0.06, left=0.115, right=0.985, top=0.93, bottom=0.2)
+    # (a) head-to-head win rate: red = row writer wins
+    ax1 = fig.add_subplot(gs[1, 0]); ax1r = fig.add_subplot(gs[1, 1])
+    win_cmap = ps.GAP_CMAP
+    ps.tile_matrix(ax1, win_mat, win_cmap, 20, 80, fmt="{:.0f}", self_outline=False,
+                   row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
+                   row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY, dark_at=0.45)
+    ps.side_bars(ax1r, win_avg, [WRITER_COLORS[w] for w in sorted_win_models], xlim=(30, 66),
+                 fmt="{:.0f}", base=50, label="Avg. (%)")
+    ax1r.set_xticks([40, 50, 60])
+    ax1.set_xlabel("Opponent writer")
+    ax1.set_ylabel("Writer")
+    ax1.text(0, -0.75, "Head-to-head win rate (%)", transform=ax1.get_yaxis_transform(),
+             fontweight="bold", va="bottom", ha="left", fontsize=ps.FS_BASE)
+    ps.panel_label(ax1, "a", x=-0.4, y=1.04)
+    # (b) net displacement: red = more high-fit candidates displaced
+    ax2t = fig.add_subplot(gs[0, 3]); ax2 = fig.add_subplot(gs[1, 3], sharex=ax2t)
+    ax2r = fig.add_subplot(gs[1, 4])
+    ps.tile_matrix(ax2, net_mat, ps.GAP_CMAP, -net_vmax, net_vmax, fmt="{:+.1f}",
+                   self_outline=False, row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
+                   row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY, fs=4.3, dark_at=0.5)
+    ps.margin_bars(ax2t, net_col, ps.GAP_CMAP, -net_vmax, net_vmax, ylim=(-4.6, 4.6),
+                   fmt="{:+.1f}", fs=4.0, label="Avg.")
+    ax2t.set_yticks([-3, 0, 3])
+    ps.side_bars(ax2r, net_row, [WRITER_COLORS[w] for w in sorted_net], xlim=(-3.2, 7.5),
+                 fmt="{:+.1f}", label="Avg.")
+    ax2r.set_xticks([0, 3, 6])
+    ax2.set_xlabel("Writer of moderate-fit candidates")
+    ax2.set_ylabel("Writer of high-fit candidates")
+    ax2t.set_title("Net displacement of high-fit candidates (pp)", loc="left", x=0)
+    ps.panel_label(ax2t, "b", x=-0.4, y=1.0)
     fig.savefig(os.path.join(save_dir, fname))
     plt.close(fig)
     print(f"  Saved {fname}")
@@ -1175,42 +1207,31 @@ def plot_fairness_heatmap_combined(df, save_dir):
     for etype, d in panels.items():
         d["mat"].to_csv(os.path.join(save_dir, f"fairness_rank_combined_{etype}.csv"))
 
-    vmax = np.ceil(global_vmax)
-    H = 0.72  # cell height, as in Fig. 2
-    fig = plt.figure(figsize=(ps.FULL_WIDTH, 2.6))
-    outer = gridspec.GridSpec(1, 2, figure=fig, wspace=0.55)
-    heat_axes = []
+    vmax = np.ceil(global_vmax * 2) / 2
+    tot_max = max(d["row_tot"].max() for d in panels.values())
+    fig = plt.figure(figsize=(ps.FULL_WIDTH, 2.75))
+    outer = gridspec.GridSpec(1, 2, figure=fig, wspace=0.42, left=0.13, right=0.985,
+                              top=0.92, bottom=0.27)
     for panel_idx, (etype, letter) in enumerate(zip(etypes, "ab")):
         d = panels[etype]
         mat, row_order, row_tot = d["mat"], d["row_order"], d["row_tot"]
-        n_c = mat.shape[1]
         inner = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=outer[0, panel_idx],
-                                                 width_ratios=[n_c, 3.2], wspace=0.06)
-        ax_heat = fig.add_subplot(inner[0, 0]); heat_axes.append(ax_heat)
+                                                 width_ratios=[mat.shape[1], 2.6], wspace=0.04)
+        ax_heat = fig.add_subplot(inner[0, 0])
         ax_bar = fig.add_subplot(inner[0, 1])
-        ps.heatmap(ax_heat, mat, ps.DIVERGING_CMAP, -vmax, vmax, display=MODEL_DISPLAY,
-                   fmt=lambda v: ps.fmt_num(v, 1, strip_zero=False), cell_h=H, text_fs=4.6)
+        ps.tile_matrix(ax_heat, mat, ps.GAP_CMAP, -vmax, vmax, fmt="{:.1f}",
+                       row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
+                       row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY)
         ax_heat.set_title(TITLE_MAP[etype], loc="left", x=0)
-        ax_heat.set_xlabel("Writer model")
+        ax_heat.set_xlabel("Writer")
         if panel_idx == 0:
-            ax_heat.set_ylabel("Evaluator model")
-        ps.panel_label(ax_heat, letter, x=-0.5, y=1.0)
-
+            ax_heat.set_ylabel("Evaluator")
+        ps.panel_label(ax_heat, letter, x=-0.36, y=1.0)
         # Marginal bars: each evaluator's total |rank gap| across writers
-        y_pos = (np.arange(len(row_order)) + 0.5) * H
-        vals = row_tot.loc[row_order].values
-        ax_bar.barh(y_pos, vals, height=H * 0.62, color="#b9b7b0", lw=0)
-        for y, v in zip(y_pos, vals):
-            ax_bar.text(v + vals.max() * 0.03, y, f"{v:.1f}", va="center", fontsize=4.6, color=ps.INK)
-        ax_bar.set_ylim(ax_heat.get_ylim())
-        ax_bar.set_xlim(0, vals.max() * 1.25)
-        ax_bar.tick_params(axis="y", left=False, labelleft=False)
-        ax_bar.spines["left"].set_visible(False)
-        ax_bar.set_xlabel("Total |rank gap|")
-    ps.colorbar(fig, heat_axes[-1], ps.DIVERGING_CMAP, -vmax, vmax,
-                "Rank gap", low="penalised", high="favoured",
-                cax=heat_axes[-1].inset_axes([1.5, 0.08, 0.03, 0.84]))
-    ps.provider_legend(fig, bbox=(0.45, -0.3))
+        ps.side_bars(ax_bar, row_tot.loc[row_order].values,
+                     [WRITER_COLORS[e] for e in row_order], xlim=(0, tot_max * 1.45),
+                     label="Total |gap|")
+        ax_bar.set_xticks([0, 10])
     fig.savefig(os.path.join(save_dir, "fairness_rank_combined.png"))
     plt.close(fig)
     print("  Saved fairness_rank_combined.png")
