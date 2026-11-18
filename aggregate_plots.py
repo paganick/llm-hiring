@@ -870,39 +870,39 @@ def plot_win_net_combined(tier_df, delta_matrix, p_matrix, raw_matrix, writers_n
     net_row = df_net.loc[sorted_net, "Avg."].values
     net_col = df_net.loc["Avg.", sorted_net].values
 
-    fig = plt.figure(figsize=(ps.FULL_WIDTH, 3.25))
-    gs = fig.add_gridspec(2, 5, height_ratios=[1, 3.6], width_ratios=[11, 3.2, 7.2, 11, 3.2],
-                          hspace=0.05, wspace=0.06, left=0.115, right=0.985, top=0.93, bottom=0.2)
+    fig = plt.figure(figsize=(ps.FULL_WIDTH, 2.75))
+    gs = fig.add_gridspec(1, 5, width_ratios=[11, 3.2, 7.2, 11, 3.2],
+                          wspace=0.06, left=0.115, right=0.985, top=0.92, bottom=0.25)
+    def tint(vals, base):
+        # red-blue on the bars' own symmetric range around `base`, so small averages stay visible
+        m = np.max(np.abs(np.asarray(vals) - base)) * 1.1
+        return [ps.GAP_CMAP(0.5 + 0.5 * (v - base) / m) for v in vals]
     # (a) head-to-head win rate: red = row writer wins
-    ax1 = fig.add_subplot(gs[1, 0]); ax1r = fig.add_subplot(gs[1, 1])
+    ax1 = fig.add_subplot(gs[0, 0]); ax1r = fig.add_subplot(gs[0, 1])
     win_cmap = ps.GAP_CMAP
     ps.tile_matrix(ax1, win_mat, win_cmap, 20, 80, fmt="{:.0f}", self_outline=False,
                    row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
                    row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY, dark_at=0.45)
-    ps.side_bars(ax1r, win_avg, [WRITER_COLORS[w] for w in sorted_win_models], xlim=(30, 66),
+    ps.side_bars(ax1r, win_avg, tint(win_avg, 50), xlim=(30, 66),
                  fmt="{:.0f}", base=50, label="Avg. (%)")
     ax1r.set_xticks([40, 50, 60])
     ax1.set_xlabel("Opponent writer")
     ax1.set_ylabel("Writer")
-    ax1.text(0, -0.75, "Head-to-head win rate (%)", transform=ax1.get_yaxis_transform(),
-             fontweight="bold", va="bottom", ha="left", fontsize=ps.FS_BASE)
-    ps.panel_label(ax1, "a", x=-0.4, y=1.04)
+    ax1.set_title("Head-to-head win rate (%)", loc="left", x=0)
+    ps.panel_label(ax1, "a", x=-0.4, y=1.0)
     # (b) net displacement: red = more high-fit candidates displaced
-    ax2t = fig.add_subplot(gs[0, 3]); ax2 = fig.add_subplot(gs[1, 3], sharex=ax2t)
-    ax2r = fig.add_subplot(gs[1, 4])
+    ax2 = fig.add_subplot(gs[0, 3])
+    ax2r = fig.add_subplot(gs[0, 4])
     ps.tile_matrix(ax2, net_mat, ps.GAP_CMAP, -net_vmax, net_vmax, fmt="{:+.1f}",
                    self_outline=False, row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
                    row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY, fs=4.3, dark_at=0.5)
-    ps.margin_bars(ax2t, net_col, ps.GAP_CMAP, -net_vmax, net_vmax, ylim=(-4.6, 4.6),
-                   fmt="{:+.1f}", fs=4.0, label="Avg.")
-    ax2t.set_yticks([-3, 0, 3])
-    ps.side_bars(ax2r, net_row, [WRITER_COLORS[w] for w in sorted_net], xlim=(-3.2, 7.5),
+    ps.side_bars(ax2r, net_row, tint(net_row, 0), xlim=(-3.2, 7.5),
                  fmt="{:+.1f}", label="Avg.")
     ax2r.set_xticks([0, 3, 6])
     ax2.set_xlabel("Writer of moderate-fit candidates")
     ax2.set_ylabel("Writer of high-fit candidates")
-    ax2t.set_title("Net displacement of high-fit candidates (pp)", loc="left", x=0)
-    ps.panel_label(ax2t, "b", x=-0.4, y=1.0)
+    ax2.set_title("Net displacement of high-fit candidates (pp)", loc="left", x=0)
+    ps.panel_label(ax2, "b", x=-0.4, y=1.0)
     fig.savefig(os.path.join(save_dir, fname))
     plt.close(fig)
     print(f"  Saved {fname}")
