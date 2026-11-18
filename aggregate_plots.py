@@ -697,9 +697,8 @@ def plot_net_advantage_extreme_evaluators(comp_df, writers, evaluators, save_dir
 
         delta = np.full((N, N), np.nan)
         for i in range(N):
-            ctrl_val = rounded_raw[i, i]
             for j in range(N):
-                delta[i, j] = rounded_raw[i, j] - ctrl_val
+                delta[i, j] = raw[i, j] - raw[i, i]   # subtract unrounded rates
 
         masked_delta = delta.copy()
         np.fill_diagonal(masked_delta, np.nan)
@@ -1999,13 +1998,15 @@ def main():
         std_mat = np.full((len(writers), len(writers)), np.nan)
         for i, b in enumerate(writers):
             ctrl_by_eval = eval_dist[(b, b)]
-            ctrl_val  = rounded_raw[i, i]
+            ctrl_val  = global_raw[i, i]
             for j, t in enumerate(writers):
                 tgt_by_eval = eval_dist[(b, t)]
                 if not tgt_by_eval or not ctrl_by_eval:
                     delta[i, j] = np.nan
                     continue
-                delta[i, j] = rounded_raw[i, j] - ctrl_val
+                # Subtract the UNROUNDED rates; rounding first (14.18 -> 14.2, 6.44 -> 6.4)
+                # shifted some cells by 0.1 pp (e.g. Llama vs DeepSeek V3.2: 7.8 instead of 7.73).
+                delta[i, j] = global_raw[i, j] - global_raw[i, i]
                 if i == j:
                     p_mat[i, j] = 1.0
                     continue
