@@ -1307,17 +1307,20 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
             for a_ in (ax, ax2):
                 a_.axhspan(i - 0.5, i + 0.5, color=ps.FAV_BG if r["mean"] >= 0 else ps.PEN_BG,
                            lw=0, zorder=0)
+        for a_ in (ax, ax2):   # faint row guide, so a row can be followed across both panels
+            a_.axhline(i, color="#e6e6e6", lw=0.4, zorder=1)
         v = np.array(list(r["vals"].values()))
         ax.plot([v.min(), v.max()], [i, i], color="#c8c8c8", lw=1.6, solid_capstyle="round", zorder=2)
-        ax.scatter(v, i + rng.uniform(-0.13, 0.13, len(v)), s=5, fc=ps.INK_2, ec=ps.INK_2,
-                   lw=0.4, alpha=0.8, zorder=3)
-        ax.plot([r["mean"]] * 2, [i - 0.34, i + 0.34], color=cat_col, lw=2.2,
+        # evaluator dots in the model colours, so they can be matched with the writer dots in (b)
+        for e, ve in r["vals"].items():
+            ax.scatter(ve, i, s=11, fc=WRITER_COLORS.get(e, "grey"), ec="white", lw=0.3, zorder=3)
+        ax.plot([r["mean"]] * 2, [i - 0.34, i + 0.34], color=ps.INK, lw=1.4,
                 solid_capstyle="butt", zorder=4)
         z = {w: zz for w, (zz, _) in r["writer_z"].items()}
         zv = np.array(list(z.values()))
         ax2.plot([zv.min(), zv.max()], [i, i], color="#c8c8c8", lw=1.6, solid_capstyle="round", zorder=2)
         for w, zz in z.items():
-            ax2.scatter(zz, i, s=9, fc=WRITER_COLORS.get(w, "grey"), ec="white", lw=0.3, zorder=3)
+            ax2.scatter(zz, i, s=11, fc=WRITER_COLORS.get(w, "grey"), ec="white", lw=0.3, zorder=3)
     for a_ in (ax, ax2):
         a_.axvline(0, color=ps.INK_2, lw=0.5, zorder=1)
         for side in ("left", "top", "right"):
@@ -1330,8 +1333,8 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
         t.set_color(_feature_name_color(r["feature"]))
     ax.set_xlabel("Ridge coefficient (standardised feature \u2192 score)")
     ax2.set_xlabel("Writer's mean use (standardised)")
-    ax.set_title("How much evaluators reward each feature", loc="left", x=0)
-    ax2.set_title("How much writers use it", loc="left", x=0)
+    ax.set_title("How much each evaluator rewards each feature", loc="left", x=0)
+    ax2.set_title("How much each writer uses it", loc="left", x=0)
     ps.panel_label(ax, "a", x=-0.36, y=1.0)
     ps.panel_label(ax2, "b", x=-0.03, y=1.0)
 
@@ -1342,12 +1345,13 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
             cats.append(c)
     cat_handles = [Patch(facecolor=FEATURE_CATEGORY_COLORS[c], label=c)
                    for c in FEATURE_CATEGORY_COLORS if c in cats]
-    writer_handles = [Line2D([0], [0], marker="o", ls="none", ms=3, color=WRITER_COLORS[w],
+    writer_handles = [Line2D([0], [0], marker="o", ls="none", ms=3.4, color=WRITER_COLORS[w],
                              markeredgewidth=0, label=MODEL_DISPLAY[w]) for w in RAW_WRITERS]
     fig.legend(handles=cat_handles, loc="upper center", bbox_to_anchor=(0.3, 0.075), ncol=2,
                handlelength=0.8, handleheight=0.8, columnspacing=1.0, fontsize=ps.FS_TINY + 0.5)
     fig.legend(handles=writer_handles, loc="upper center", bbox_to_anchor=(0.76, 0.075), ncol=3,
-               handlelength=0.8, columnspacing=0.8, fontsize=ps.FS_TINY + 0.5)
+               handlelength=0.8, columnspacing=0.8, fontsize=ps.FS_TINY + 0.5,
+               title="Evaluator (a) / writer (b)", title_fontsize=ps.FS_TINY + 0.5)
     fig.savefig(out_path)
     plt.close(fig)
     print(f"  Saved {os.path.basename(out_path)}")
