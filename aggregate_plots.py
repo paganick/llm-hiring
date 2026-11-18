@@ -866,9 +866,11 @@ def plot_win_net_combined(tier_df, delta_matrix, p_matrix, raw_matrix, writers_n
             os.path.join(save_dir, f"{os.path.splitext(fname)[0]}_net_advantage_std.csv"))
     win_mat = df_win.loc[sorted_win_models, sorted_win_models]
     win_avg = df_win.loc[sorted_win_models, "Avg."].values
-    net_mat = df_net_plot.loc[sorted_net, sorted_net]
-    net_row = df_net.loc[sorted_net, "Avg."].values
-    net_col = df_net.loc["Avg.", sorted_net].values
+    # Shown transposed: rows = writer of the MODERATE-fit candidates (w2), columns = writer
+    # of the high-fit candidates (w1). Values keep their sign (positive = high-fit displaced),
+    # so red = good for the row writer, as in panel (a).
+    net_mat = df_net_plot.loc[sorted_net, sorted_net].T
+    net_row = df_net.loc["Avg.", sorted_net].values   # average over high-fit writers, per w2
 
     fig = plt.figure(figsize=(ps.FULL_WIDTH, 2.75))
     gs = fig.add_gridspec(1, 5, width_ratios=[11, 3.2, 7.2, 11, 3.2],
@@ -896,12 +898,12 @@ def plot_win_net_combined(tier_df, delta_matrix, p_matrix, raw_matrix, writers_n
     ps.tile_matrix(ax2, net_mat, ps.GAP_CMAP, -net_vmax, net_vmax, fmt="{:+.1f}",
                    self_outline=False, row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
                    row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY, fs=4.3, dark_at=0.5)
-    ps.side_bars(ax2r, net_row, tint(net_row, 0), xlim=(-3.2, 7.5),
+    ps.side_bars(ax2r, net_row, tint(net_row, 0), xlim=(-5.5, 4.5),
                  fmt="{:+.1f}", label="Avg.")
-    ax2r.set_xticks([0, 3, 6])
-    ax2.set_xlabel("Writer of moderate-fit candidates")
-    ax2.set_ylabel("Writer of high-fit candidates")
-    ax2.set_title("Net displacement of high-fit candidates (pp)", loc="left", x=0)
+    ax2r.set_xticks([-3, 0, 3])
+    ax2.set_xlabel("Writer of high-fit candidates")
+    ax2.set_ylabel("Writer of moderate-fit candidates")
+    ax2.set_title("High-fit candidates displaced (pp)", loc="left", x=0)
     ps.panel_label(ax2, "b", x=-0.4, y=1.0)
     fig.savefig(os.path.join(save_dir, fname))
     plt.close(fig)
