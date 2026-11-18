@@ -148,7 +148,11 @@ def findings_row(y, x0=0, W=170, gap=2):
 
 # ---------- C2: per-evaluator dots (as Fig. 2) ----------
 b = "\\fill[panel, rounded corners=2mm] (0,0) rectangle (113,-60);\n\\fill[panel, rounded corners=2mm] (117,0) rectangle (170,-60);\n"
-b += "\\node[head] at (3,-4.5) {Same candidate, eleven letters, different scores};\n"
+# phase headers (the three-phase pipeline described in the text), each with a thin rule
+# spanning the part of the figure it covers
+for num, lab, x0, x1 in [(1, "Generation", 3, 47), (2, "Evaluation", 52.5, 110)]:
+    b += f"\\node[num] at ({x0+1.8},-4.2) {{{num}}};\n\\node[head] at ({x0+4.6},-4.2) {{{lab}}};\n"
+    b += f"\\draw[rule, line width=0.6pt] ({x0},-6.9) -- ({x1},-6.9);\n"
 b += cv_icon(10, -31) + "\\node[small, align=center, text=ink] at (10,-44.5) {\\textbf{One candidate}\\\\[0.3mm]CV + job ad};\n"
 b += "\\node[tiny, align=center] at (10,-51) {$\\times$ 500 candidates\\\\(10 jobs $\\times$ 50 CVs)};\n"
 b += letters(-9.5, 4.25)
@@ -167,8 +171,9 @@ for k, w in enumerate(order):
 b += f"\\draw[ink2, line width=0.4pt] ({xb},-6.8) -- ({xb},-54.2);\n"
 b += f"\\node[tiny] at ({xb},-56.8) {{score gap (0--10 scale), cover letter only}};\n"
 b += f"\\node[tiny, anchor=west] at ({xb-0.6*s},-4.6) {{\\textcolor{{penc}}{{$\\leftarrow$ penalised}}}};\n\\node[tiny, anchor=east] at ({xb+0.66*s},-4.6) {{\\textcolor{{fav}}{{favoured $\\rightarrow$}}}};\n"
-b += "\\node[head] at (120,-4.5) {Scale and findings};\n"
-b += "\\node[small, align=left, anchor=north west, text=ink] at (120,-8.5) {11 writers $\\cdot$ 9 evaluators $\\cdot$ 3 conditions $\\cdot$ 4 runs\\\\\\textbf{414,000 evaluations}};\n"
+b += "\\node[num] at (121.8,-4.2) {3};\n\\node[head] at (124.6,-4.2) {Analysis};\n"
+b += "\\draw[rule, line width=0.6pt] (120,-6.9) -- (167,-6.9);\n"
+b += "\\node[small, align=left, anchor=north west, text=ink] at (120,-9.2) {11 writers $\\cdot$ 9 evaluators $\\cdot$ 3 conditions $\\cdot$ 4 runs\\\\\\textbf{414,000 evaluations}};\n"
 b += findings_col()
 open(OUT, "w").write(doc(61, b))
 print("Wrote", os.path.normpath(OUT))
