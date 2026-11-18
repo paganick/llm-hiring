@@ -365,7 +365,7 @@ def plot_gap_dotplot_combined(tier_df, save_dir):
     """Fig. 2: relative preference gap per writer, cover letter only (a) and CV + cover letter (b).
 
     One row per writer, sorted by its average gap. Small dots are the nine
-    evaluators (filled: p < 0.05, one-sample t-test across CVs; hollow: n.s.),
+    evaluators, coloured by evaluator (filled: p < 0.05, one-sample t-test across CVs; hollow: n.s.),
     the grey line spans their range, the coloured bar is the average over
     evaluators, and the coloured ring is the writer's own evaluation (self).
     The full evaluator x writer matrix is in heatmap_gap_combined.
@@ -404,8 +404,9 @@ def plot_gap_dotplot_combined(tier_df, save_dir):
                 if e == w:
                     ax.scatter(v, i, s=22, fc="white", ec=WRITER_COLORS[w], lw=1.0, zorder=5)
                 else:
-                    ax.scatter(v, i + rng.uniform(-0.13, 0.13), s=5, fc=ps.INK_2 if s else "white",
-                               ec=ps.INK_2, lw=0.4, alpha=0.8, zorder=3)
+                    ec_ = WRITER_COLORS[e]   # dot coloured by the evaluator
+                    ax.scatter(v, i + rng.uniform(-0.13, 0.13), s=7, fc=ec_ if s else "white",
+                               ec=ec_, lw=0.5, alpha=0.9, zorder=3)
             ax.plot([avg[w]] * 2, [i - 0.32, i + 0.32], color=WRITER_COLORS[w], lw=2.2,
                     solid_capstyle="butt", zorder=4)
             ax.text(1.02, i, f"{avg[w]:+.2f}", ha="left", va="center", fontsize=ps.FS_TINY,
