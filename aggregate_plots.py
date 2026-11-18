@@ -316,7 +316,7 @@ def plot_heatmap_gap(tier_df, save_dir):
 def plot_heatmap_gap_combined(tier_df, save_dir):
     """Fig. 2: relative preference gap, cover letter only (a) and CV + cover letter (b).
 
-    Blue = the evaluator favours that writer, red = penalises it. Values not
+    Red = the evaluator favours that writer, blue = penalises it (as in Fig. 2). Values not
     significantly different from zero (one-sample t-test across CVs, p >= 0.05)
     are printed in grey. Self-evaluation cells are outlined.
     """
@@ -336,17 +336,98 @@ def plot_heatmap_gap_combined(tier_df, save_dir):
         df_annot.to_csv(os.path.join(save_dir, f"heatmap_gap_combined_{etype}_labels.csv"))
         sig = df_annot.apply(lambda col: col.astype(str).str.contains(r"\(\*\)"))
         sig.loc["Avg."] = True
-        ps.heatmap(ax, df, ps.DIVERGING_CMAP, -vmax, vmax, sig=sig, display=MODEL_DISPLAY)
+        ps.heatmap(ax, df, "RdBu_r", -vmax, vmax, sig=sig, display=MODEL_DISPLAY)
         ax.set_title(TITLE_MAP[etype], loc="left", x=0)
         ps.panel_label(ax, letter, x=-0.42, y=1.0)
         ax.set_xlabel("Writer model")
     axes[0].set_ylabel("Evaluator model")
-    ps.colorbar(fig, axes, ps.DIVERGING_CMAP, -vmax, vmax,
+    ps.colorbar(fig, axes, "RdBu_r", -vmax, vmax,
                 "Preference gap (points)", low="penalised", high="favoured")
     ps.provider_legend(fig, bbox=(0.45, -0.27))
     fig.savefig(os.path.join(save_dir, "heatmap_gap_combined.png"))
     plt.close(fig)
     print("  Saved heatmap_gap_combined.png")
+
+GAP_FAV, GAP_PEN = "#a8341f", "#2c5d8f"            # red = favoured, blue = penalised
+GAP_FAV_BG, GAP_PEN_BG = "#fbf1ec", "#eef3f8"
+
+
+def plot_gap_dotplot_combined(tier_df, save_dir):
+    """Fig. 2: relative preference gap per writer, cover letter only (a) and CV + cover letter (b).
+
+    One row per writer, sorted by its average gap. Small dots are the nine
+    evaluators (filled: p < 0.05, one-sample t-test across CVs; hollow: n.s.),
+    the grey line spans their range, the coloured bar is the average over
+    evaluators, and the coloured ring is the writer's own evaluation (self).
+    The full evaluator x writer matrix is in heatmap_gap_combined.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    etypes = ["cl_evaluations", "cv_cl_evaluations"]
+    built = {et: _gap_matrices_from_df(tier_df, et) for et in etypes}
+    if any(v[0] is None for v in built.values()):
+        return
+    lim = max(built[et][0].abs().max().max() for et in etypes)
+    lim = np.ceil(lim * 10) / 10 + 0.05
+
+    fig, axes = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 2.35),
+                             gridspec_kw=dict(wspace=0.55, left=0.12, right=0.95, top=0.9, bottom=0.16))
+    rows = []
+    for k, (ax, etype) in enumerate(zip(axes, etypes)):
+        df, df_annot, _, _ = built[etype]
+        avg = df.loc["Avg."]
+        mat = df.drop(index="Avg.")
+        sig = df_annot.drop(index="Avg.").apply(lambda c: c.astype(str).str.contains(r"\(\*\)"))
+        writers = list(avg.sort_values(ascending=False).index)
+        n = len(writers)
+
+        ax.axvspan(-lim, 0, color=GAP_PEN_BG, zorder=0, lw=0)
+        ax.axvspan(0, lim, color=GAP_FAV_BG, zorder=0, lw=0)
+        ax.axvline(0, color=ps.INK_2, lw=0.5, zorder=1)
+        rng = np.random.default_rng(1)   # small vertical jitter, fixed for reproducibility
+        for i, w in enumerate(writers):
+            vals = mat[w].dropna()
+            ax.plot([vals.min(), vals.max()], [i, i], color="#c8c8c8", lw=1.6,
+                    solid_capstyle="round", zorder=2)
+            for e, v in vals.items():
+                s = bool(sig.loc[e, w])
+                rows.append({"condition": etype, "writer": w, "evaluator": e, "gap": v,
+                             "significant": s, "self": e == w})
+                if e == w:
+                    ax.scatter(v, i, s=22, fc="white", ec=WRITER_COLORS[w], lw=1.0, zorder=5)
+                else:
+                    ax.scatter(v, i + rng.uniform(-0.13, 0.13), s=5, fc=ps.INK_2 if s else "white",
+                               ec=ps.INK_2, lw=0.4, alpha=0.8, zorder=3)
+            ax.plot([avg[w]] * 2, [i - 0.32, i + 0.32], color=WRITER_COLORS[w], lw=2.2,
+                    solid_capstyle="butt", zorder=4)
+            ax.text(1.02, i, f"{avg[w]:+.2f}", ha="left", va="center", fontsize=ps.FS_TINY,
+                    color=ps.INK, transform=ax.get_yaxis_transform(), clip_on=False)
+            rows.append({"condition": etype, "writer": w, "evaluator": "Avg.", "gap": avg[w],
+                         "significant": np.nan, "self": False})
+
+        ax.text(1.02, -0.9, "Avg.", fontsize=ps.FS_TINY, color=ps.INK_2,
+                transform=ax.get_yaxis_transform(), clip_on=False)
+        ax.text(-lim + 0.03, -0.75, "← penalised", fontsize=ps.FS_TINY, color=GAP_PEN, va="top")
+        ax.text(lim - 0.03, -0.75, "favoured →", fontsize=ps.FS_TINY, color=GAP_FAV,
+                va="top", ha="right")
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(n - 0.4, -1.0)
+        ax.set_yticks(range(n))
+        ax.set_yticklabels([MODEL_DISPLAY[w] for w in writers])
+        for t, w in zip(ax.get_yticklabels(), writers):
+            t.set_color(WRITER_COLORS[w])
+        ax.tick_params(axis="y", length=0)
+        for side in ("left", "top", "right"):
+            ax.spines[side].set_visible(False)
+        ax.set_xticks([-0.6, -0.3, 0, 0.3, 0.6])
+        ax.set_xlabel("Relative preference gap (points, 0–10 scale)")
+        ax.set_title(TITLE_MAP[etype], loc="left", x=0)
+        ps.panel_label(ax, "ab"[k], x=-0.3, y=1.0)
+
+    pd.DataFrame(rows).to_csv(os.path.join(save_dir, "gap_dotplot_combined.csv"), index=False)
+    fig.savefig(os.path.join(save_dir, "gap_dotplot_combined.png"))
+    plt.close(fig)
+    print("  Saved gap_dotplot_combined.png")
+
 
 def compute_win_rate(subset, writers):
     """Head-to-head win rates WR(w1, w2) in percent.
@@ -1932,6 +2013,7 @@ def main():
     if not tier_df.empty:
         plot_heatmap_gap(tier_df, OUT_DIR)
         plot_heatmap_gap_combined(tier_df, OUT_DIR)
+        plot_gap_dotplot_combined(tier_df, OUT_DIR)
         plot_win_matrix(tier_df, OUT_DIR)
         plot_evaluator_divergence(tier_df, OUT_DIR)
         plot_stacked_score(tier_df, OUT_DIR)
