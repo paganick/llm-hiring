@@ -367,7 +367,7 @@ def plot_gap_dotplot_combined(tier_df, save_dir):
     One row per writer, sorted by its average gap. Small dots are the nine
     evaluators, coloured by evaluator (filled: p < 0.05, one-sample t-test across CVs; hollow: n.s.),
     the grey line spans their range, the coloured bar is the average over
-    evaluators, and the coloured ring is the writer's own evaluation (self).
+    evaluators, and the square is the writer's own evaluation (self; filled if p < 0.05).
     The full evaluator x writer matrix is in heatmap_gap_combined.
     """
     os.makedirs(save_dir, exist_ok=True)
@@ -402,7 +402,11 @@ def plot_gap_dotplot_combined(tier_df, save_dir):
                 rows.append({"condition": etype, "writer": w, "evaluator": e, "gap": v,
                              "significant": s, "self": e == w})
                 if e == w:
-                    ax.scatter(v, i, s=22, fc="white", ec=WRITER_COLORS[w], lw=1.0, zorder=5)
+                    # Self-evaluation: a square, so it is not confused with the hollow
+                    # (non-significant) dots. Same fill rule as the dots: filled if
+                    # significant (dark edge), hollow with a model-coloured edge otherwise.
+                    ax.scatter(v, i, s=26, marker="s", fc=WRITER_COLORS[w] if s else "white",
+                               ec=ps.INK if s else WRITER_COLORS[w], lw=0.6 if s else 1.0, zorder=5)
                 else:
                     ec_ = WRITER_COLORS[e]   # dot coloured by the evaluator
                     ax.scatter(v, i + rng.uniform(-0.13, 0.13), s=7, fc=ec_ if s else "white",
@@ -429,7 +433,7 @@ def plot_gap_dotplot_combined(tier_df, save_dir):
         for side in ("left", "top", "right"):
             ax.spines[side].set_visible(False)
         ax.set_xticks([-0.6, -0.3, 0, 0.3, 0.6])
-        ax.set_xlabel("Relative preference gap (points, 0–10 scale)")
+        ax.set_xlabel("Relative preference gap (points, 1–10 scale)")
         ax.set_title(TITLE_MAP[etype], loc="left", x=0)
         ps.panel_label(ax, "ab"[k], x=-0.3, y=1.0)
 
