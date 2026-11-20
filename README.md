@@ -1,6 +1,6 @@
 # LLM writers × LLM evaluators: generative preference bias in AI-mediated hiring
 
-Code for *"Which AI writes the job application changes how AI screeners rank the same candidate"* (Pagan, Ebling, Ionescu, Hannák).
+Code for *"Auditing writer-model bias and self-preference when LLMs both write and screen job applications"* (Pagan, Ebling, Ionescu, Hannák).
 
 Eleven writer LLMs (nine API-hosted, two locally hosted) write cover letters
 for 50 candidates × 10 job postings. Nine API-hosted evaluator LLMs score every
