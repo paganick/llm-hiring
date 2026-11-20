@@ -443,6 +443,83 @@ def plot_gap_dotplot_combined(tier_df, save_dir):
     print("  Saved gap_dotplot_combined.png")
 
 
+def plot_gap_by_tier(tier_df, save_dir, n_high=25):
+    """Supplementary: average relative preference gap per writer, computed
+    separately for high-fit (CV_Idx 1..n_high) and moderate-fit candidates.
+
+    Same gap as Fig. 2 (residual from the evaluator's mean over writers for the
+    same candidate, averaged over candidates), then averaged over the nine
+    evaluators. Filled dot = high-fit, hollow dot = moderate-fit, grey line joins
+    the two. Rows in the order of the pooled average (as in Fig. 2).
+    Also writes the per-tier values and a paired t-test across evaluators.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    etypes = ["cl_evaluations", "cv_cl_evaluations"]
+
+    def _gap(sub):
+        pm = sub.groupby(["Evaluator", "CV_Idx", "Writer"])["Score"].mean().rename("pm").reset_index()
+        am = sub.groupby(["Evaluator", "CV_Idx"])["Score"].mean().rename("am").reset_index()
+        g = pm.merge(am, on=["Evaluator", "CV_Idx"])
+        g["gap"] = g["pm"] - g["am"]
+        return g.groupby(["Evaluator", "Writer"])["gap"].mean().unstack()  # evaluator x writer
+
+    res = {}
+    for et in etypes:
+        sub = tier_df[tier_df["Eval_Type"] == et]
+        if sub.empty:
+            return
+        res[et] = (_gap(sub), _gap(sub[sub["CV_Idx"] <= n_high]), _gap(sub[sub["CV_Idx"] > n_high]))
+    lim = max(max(h.mean().abs().max(), m.mean().abs().max()) for _, h, m in res.values())
+    lim = np.ceil(lim * 10) / 10 + 0.05
+
+    fig, axes = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 2.35),
+                             gridspec_kw=dict(wspace=0.55, left=0.12, right=0.95, top=0.9, bottom=0.16))
+    rows = []
+    for k, (ax, et) in enumerate(zip(axes, etypes)):
+        pooled, hi, mo = res[et]
+        writers = list(pooled.mean().sort_values(ascending=False).index)
+        n = len(writers)
+        ax.axvspan(-lim, 0, color=GAP_PEN_BG, zorder=0, lw=0)
+        ax.axvspan(0, lim, color=GAP_FAV_BG, zorder=0, lw=0)
+        ax.axvline(0, color=ps.INK_2, lw=0.5, zorder=1)
+        for i, w in enumerate(writers):
+            h, m = hi[w].mean(), mo[w].mean()
+            p = stats.ttest_rel(hi[w], mo[w]).pvalue
+            ax.plot([h, m], [i, i], color="#c8c8c8", lw=1.6, solid_capstyle="round", zorder=2)
+            ax.scatter(h, i, s=16, fc=WRITER_COLORS[w], ec=WRITER_COLORS[w], lw=0.8, zorder=4)
+            ax.scatter(m, i, s=16, fc="white", ec=WRITER_COLORS[w], lw=1.0, zorder=4)
+            ax.text(1.02, i, f"{h - m:+.2f}" + ("*" if p < 0.05 else ""), ha="left", va="center",
+                    fontsize=ps.FS_TINY, color=ps.INK, transform=ax.get_yaxis_transform(), clip_on=False)
+            rows.append({"condition": et, "writer": w, "pooled": pooled[w].mean(), "high_fit": h,
+                         "moderate_fit": m, "diff_high_minus_moderate": h - m,
+                         "p_paired_over_evaluators": p})
+        rho = stats.spearmanr(hi.mean()[writers], mo.mean()[writers]).correlation
+        ax.text(1.02, -0.9, "Diff.", fontsize=ps.FS_TINY, color=ps.INK_2,
+                transform=ax.get_yaxis_transform(), clip_on=False)
+        rows.append({"condition": et, "writer": "SPEARMAN_high_vs_moderate", "pooled": rho})
+        ax.text(-lim + 0.03, -0.75, "\u2190 penalised", fontsize=ps.FS_TINY, color=GAP_PEN, va="top")
+        ax.text(lim - 0.03, -0.75, "favoured \u2192", fontsize=ps.FS_TINY, color=GAP_FAV,
+                va="top", ha="right")
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(n - 0.4, -1.0)
+        ax.set_yticks(range(n))
+        ax.set_yticklabels([MODEL_DISPLAY[w] for w in writers])
+        for t, w in zip(ax.get_yticklabels(), writers):
+            t.set_color(WRITER_COLORS[w])
+        ax.tick_params(axis="y", length=0)
+        for side in ("left", "top", "right"):
+            ax.spines[side].set_visible(False)
+        ax.set_xticks([-0.6, -0.3, 0, 0.3, 0.6])
+        ax.set_xlabel("Relative preference gap (points, 1\u201310 scale)")
+        ax.set_title(TITLE_MAP[et], loc="left", x=0)
+        ps.panel_label(ax, "ab"[k], x=-0.3, y=1.0)
+
+    pd.DataFrame(rows).to_csv(os.path.join(save_dir, "gap_by_tier.csv"), index=False)
+    fig.savefig(os.path.join(save_dir, "gap_by_tier.png"))
+    plt.close(fig)
+    print("  Saved gap_by_tier.png")
+
+
 def compute_win_rate(subset, writers):
     """Head-to-head win rates WR(w1, w2) in percent.
 
@@ -2043,6 +2120,7 @@ def main():
         plot_heatmap_gap(tier_df, OUT_DIR)
         plot_heatmap_gap_combined(tier_df, OUT_DIR)
         plot_gap_dotplot_combined(tier_df, OUT_DIR)
+        plot_gap_by_tier(tier_df, OUT_DIR)
         plot_win_matrix(tier_df, OUT_DIR)
         plot_evaluator_divergence(tier_df, OUT_DIR)
         plot_stacked_score(tier_df, OUT_DIR)
