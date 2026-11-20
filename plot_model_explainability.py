@@ -907,7 +907,8 @@ def _scatter_panel(ax, df, xcol, ycol, xlabel, ylabel, title,
     ax.set_xlabel(xlabel, fontsize=label_pt)
     ax.set_ylabel(ylabel, fontsize=label_pt)
     ax.set_title(title, fontsize=title_pt, fontweight="bold", pad=12)
-    ax.grid(alpha=0.3)
+    # tick labels scaled to the 18in canvas like the other text (rcParams are set for print size)
+    ax.tick_params(axis="both", labelsize=point_pt)
     ax.set_axisbelow(True)
 
 

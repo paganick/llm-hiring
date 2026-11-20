@@ -393,10 +393,6 @@ def plot_tier_effect_heatmap(tier: pd.DataFrame):
                 linewidths=0.4, linecolor="lightgrey",
                 annot_kws={"size": annot_pt},
                 cbar_kws={"label": "Cohen's d  (High-Fit − Moderate-Fit)", "shrink": 0.7})
-    ax.set_title(
-        "Do Models Write Differently for Strong vs. Weak Candidates?\n"
-        "Cohen's d per writing-style feature  |  Semantic-fit features excluded (near-definitional)",
-        fontsize=title_pt, fontweight="bold", pad=12)
     ax.set_xlabel("")
     ax.set_xticklabels(ax.get_xticklabels(), rotation=50, ha="right", fontsize=tick_pt)
     for tick in ax.get_xticklabels():
@@ -405,6 +401,9 @@ def plot_tier_effect_heatmap(tier: pd.DataFrame):
         if label == "Avg":
             tick.set_fontstyle("italic")
     ax.set_yticklabels(ax.get_yticklabels(), fontsize=tick_pt, rotation=0)
+    cbar = ax.collections[0].colorbar   # colour bar text at the same size as the ticks
+    cbar.ax.tick_params(labelsize=tick_pt)
+    cbar.set_label("Cohen's d  (High-Fit − Moderate-Fit)", fontsize=tick_pt)
 
     # Row labels colour-coded by feature category (same scheme as Fig 6 /
     # plot_feature_regression.FEATURE_CATEGORY_COLORS) instead of separate
@@ -506,9 +505,7 @@ def plot_embedding_homogeneity(homogeneity: pd.DataFrame):
         fontsize=legend_pt, frameon=True, loc="lower right",
     )
     ax.set_ylabel("Mean pairwise cosine similarity", fontsize=label_pt)
-    ax.set_title("Embedding Homogeneity: same job vs. different jobs\n"
-                 "(same model, pairs drawn within vs. across jobs)",
-                 fontsize=title_pt, fontweight="bold", pad=10)
+    ax.tick_params(axis="y", labelsize=tick_pt)   # rcParams are print-size; this canvas is larger
     ax.set_ylim(0, homogeneity.values.max() * 1.12)
     ax.grid(True, alpha=0.3, axis="y")
     ax.spines[["top", "right"]].set_visible(False)

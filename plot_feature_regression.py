@@ -684,15 +684,15 @@ def plot_category_dotplot(pairwise, feat_cols, category, out_path, xlim, feat_df
     block_starts = [n - 1 - b for b in block_starts]  # convert to reversed-plot coordinates
 
     evaluators = list(rows[0]["values"].index)
-    body_h, top_h, legend_h = 0.4 * n, 1.2, 1.4
+    body_h, top_h, legend_h = 0.5 * n, 1.2, 1.4
     total_h = body_h + top_h + legend_h
     canvas_w = 18
     title_pt      = print_pt(PANEL_TITLE_PT, canvas_w)
     headline_pt   = print_pt(HEADLINE_PT, canvas_w)
     label_pt      = print_pt(AXIS_LABEL_PT, canvas_w)
-    tick_pt       = print_pt(DENSE_TICK_PT, canvas_w)
-    sub_label_pt  = print_pt(6, canvas_w)
-    sub_tick_pt   = print_pt(5.5, canvas_w)
+    tick_pt       = print_pt(DENSE_TICK_PT + 1, canvas_w)
+    sub_label_pt  = print_pt(6.5, canvas_w)
+    sub_tick_pt   = print_pt(6, canvas_w)
     fig = plt.figure(figsize=(canvas_w, total_h))
     top_frac, bottom_frac = 1 - top_h / total_h, legend_h / total_h
     gs = fig.add_gridspec(1, 2, width_ratios=[2.2, 1], wspace=0.12,
@@ -1039,9 +1039,6 @@ def plot_self_points_summary_ranked(pairwise, feat_cols, feat_df, out_path, titl
     ax.tick_params(axis="x", labelsize=xtick_pt)
     ax.set_xlabel("Self contribution to predicted preference  "
                   "(own style x own taste)", fontsize=label_pt)
-    ax.set_title("How Each Model's Own Writing Fares Under Its Own Evaluation Taste"
-                 f"{title_note}\n(sorted by max |self contribution| across models)",
-                 fontsize=title_pt, fontweight="bold", pad=14)
     ax.grid(axis="x", alpha=0.3)
     ax.set_axisbelow(True)
 
@@ -1641,11 +1638,11 @@ def plot_self_preference_and_received(cl_args, cvcl_args, out_path):
 
     canvas_w = 13
     title_pt = print_pt(PANEL_TITLE_PT, canvas_w)
-    tick_pt  = print_pt(TICK_PT_TARGET, canvas_w)
-    label_pt = print_pt(AXIS_LABEL_PT, canvas_w)
-    annot_pt = print_pt(ANNOTATION_PT, canvas_w)
-    legend_pt = print_pt(LEGEND_PT_TARGET, canvas_w)
-    fig, ax = plt.subplots(figsize=(canvas_w, 10))
+    tick_pt  = print_pt(TICK_PT_TARGET + 1.5, canvas_w)
+    label_pt = print_pt(AXIS_LABEL_PT + 1.5, canvas_w)
+    annot_pt = print_pt(ANNOTATION_PT + 1.5, canvas_w)
+    legend_pt = print_pt(LEGEND_PT_TARGET + 1.5, canvas_w)
+    fig, ax = plt.subplots(figsize=(canvas_w, 8.5))
 
     colors = [DISPLAY_COLORS.get(m, "grey") for m in dual_role]
 
@@ -1699,12 +1696,9 @@ def plot_self_preference_and_received(cl_args, cvcl_args, out_path):
                   fontsize=label_pt)
     ax.set_ylabel("Total Preference Received\n(from the whole evaluator panel, not just self)",
                   fontsize=label_pt)
-    ax.set_title("Self-Preference vs. Preference Received (dual-role models)\n"
-                 "circle = cover letter only, square = CV + cover letter, arrow = shift",
-                 fontsize=title_pt, fontweight="bold", pad=14)
     handles = [Line2D([0], [0], marker="o", color="grey", linestyle="", markersize=10, label="Cover letter only"),
                Line2D([0], [0], marker="s", color="grey", linestyle="", markersize=10, label="CV + Cover Letter")]
-    ax.legend(handles=handles, fontsize=legend_pt, loc="lower right", framealpha=0.9)
+    ax.legend(handles=handles, fontsize=legend_pt, loc="lower left", framealpha=0.9)
     ax.grid(alpha=0.4)
     ax.set_axisbelow(True)
 
