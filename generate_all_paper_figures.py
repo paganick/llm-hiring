@@ -71,6 +71,7 @@ SCRIPTS = [
     ("plot_feature_regression.py", []),
     ("plot_nested_model_decomposition.py", []),
     ("plot_model_explainability.py", []),
+    ("make_fig_writer_vs_evaluator.py", []),  # reads CSVs written by plot_model_explainability.py
     ("plot_cl_features.py", []),
     ("plot_cl_variance.py", []),
 ]
