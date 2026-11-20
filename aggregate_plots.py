@@ -280,7 +280,7 @@ def plot_heatmap_gap(tier_df, save_dir):
             vmin=shared_vmin, vmax=shared_vmax,
             linewidths=0.5, linecolor="gray",
             annot_kws={"size": fs},
-            cbar_kws={"label": "Preference Gap (score units, 0–10 scale)"},
+            cbar_kws={"label": "Preference Gap (score units, 1–10 scale)"},
         )
         ax.axhline(len(sorted_rows), color="black", linewidth=2)
         # Thick border on diagonal cells (evaluator == writer → self-preference)
@@ -1835,7 +1835,8 @@ def plot_strictness_by_condition(tier_df, save_dir):
                     continue
                 x_pos = x_center + (model_idx - (n_models - 1) / 2) * (bar_width + 0.08)
                 m, s = subset.mean(), subset.std()
-                bar = ax.bar(x_pos, m, width=bar_width,
+                # bars rise from 1, the bottom of the 1-10 scale, not from 0
+                bar = ax.bar(x_pos, m - 1, bottom=1, width=bar_width,
                              color=model_palette[model], alpha=0.85,
                              yerr=s, error_kw={"capsize": 4, "linewidth": 1.5, "ecolor": "black"})
                 if is_first and tier_idx == 0:
@@ -1856,8 +1857,9 @@ def plot_strictness_by_condition(tier_df, save_dir):
         ax.set_xticks(tier_centers)
         ax.set_xticklabels(["High-Fit", "Moderate-Fit"])
         ax.set_title(title, fontsize=title_pt, fontweight="bold", pad=10)
-        ax.set_ylabel("Score" if is_first else "", fontsize=label_pt)
-        ax.set_ylim(0, 11.5)
+        ax.set_ylabel("Score (1\u201310 scale)" if is_first else "", fontsize=label_pt)
+        ax.set_ylim(1, 11)
+        ax.set_yticks([1, 2, 4, 6, 8, 10])
         ax.tick_params(axis="both", labelsize=tick_pt)
         if not is_first:
             ax.tick_params(axis="y", labelleft=False)
