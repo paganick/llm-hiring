@@ -734,112 +734,64 @@ def plot_net_advantage(delta_matrix, p_matrix, raw_matrix, writers, save_dir, st
 
 def plot_net_advantage_extreme_evaluators(comp_df, writers, evaluators, save_dir,
                                            fname="net_advantage_extreme_evaluators.png"):
-    """Side-by-side Net Competitive Advantage heatmaps for INDIVIDUAL
-    evaluators (self-evaluation triples included throughout, matching
-    calculate_leapfrog's existing behavior for the pooled matrix -- only the
-    separate win-rate analysis excludes self-evaluation), rather than pooled
-    across all 9 as in net_advantage_matrix_ALL_COMBINED.png /
-    win_net_combined.png. Appendix companion surfacing the worst-case
-    single-evaluator numbers: the pooled matrix is a cross-evaluator mean,
-    and individual evaluators can go well beyond it on specific pairings.
-    main() passes the two evaluators with the highest single cell.
+    """Net displacement matrices for INDIVIDUAL evaluators (self-evaluation
+    triples included, as in the pooled matrix), rather than averaged over all
+    nine as in Figure 4b. Appendix companion showing the worst-case
+    single-evaluator numbers; main() passes the two evaluators with the
+    highest single cell.
 
-    Style matches win_net_combined's right panel exactly (same cmap, grey
-    em-dash control diagonal, color-coded square y-ticks, no inline '%', no
-    bold): no significance marking here at all (dropped rather than
-    replicating the reference's bold-for-p<0.05 convention), since the point
-    of this figure is just the raw worst-case magnitude per evaluator."""
+    Drawn exactly like win_net_combined's panel (b): rows = writer of the
+    moderate-fit candidates, columns = writer of the high-fit candidates,
+    rounded tiles on the shared GAP_CMAP (one colour scale for both panels),
+    and an 'Avg.' bar per row. Writers are in the order of Figure 4b so the
+    panels can be compared cell by cell."""
     os.makedirs(save_dir, exist_ok=True)
     N = len(writers)
-    # Font sizes are computed from the ORIGINAL canvas_w (so print_pt keeps
-    # them at the print size already set), but the actual figure is drawn
-    # 15% wider (fig_canvas_w): since print_pt's target print size doesn't
-    # depend on canvas width, widening only the figure -- not the font
-    # calculation -- is what actually gives each cell more room relative to
-    # its (unchanged) annotation text.
-    canvas_w = 28
-    fig_canvas_w = canvas_w * 1.15
-    title_pt    = print_pt(PANEL_TITLE_PT, canvas_w)
-    label_pt    = print_pt(AXIS_LABEL_PT, canvas_w)
-    tick_pt     = print_pt(DENSE_TICK_PT, canvas_w)
-    square_pt   = print_pt(7.5, canvas_w)
-    annot_pt    = print_pt(5.5, canvas_w) * 0.85  # ~15% smaller than the reference's own in-cell size
-    headline_pt = print_pt(HEADLINE_PT, canvas_w)
+    # order of Figure 4b (pooled matrix), if it has been written already
+    pooled_csv = os.path.join(save_dir, "win_net_combined_net_advantage.csv")
+    order = None
+    if os.path.exists(pooled_csv):
+        order = [w for w in pd.read_csv(pooled_csv, index_col=0).index if w in writers]
 
-    fig, axes = plt.subplots(1, len(evaluators), figsize=(fig_canvas_w, 11))
-
-    for ax, evaluator in zip(axes, evaluators):
+    mats, rows = [], []
+    for evaluator in evaluators:
         raw = np.full((N, N), np.nan)
         for i, b in enumerate(writers):
             for j, t in enumerate(writers):
                 vals = calculate_leapfrog(comp_df, evaluator, b, t)
                 raw[i, j] = np.mean(vals) if vals else np.nan
-        rounded_raw = np.round(raw, 1)
+        delta = raw - np.diag(raw)[:, None]          # subtract unrounded control rates
+        np.fill_diagonal(delta, np.nan)
+        df = pd.DataFrame(delta, index=writers, columns=writers)   # rows w1 (high-fit), cols w2
+        if order is None:
+            order = df.mean(axis=0).sort_values(ascending=False).index.tolist()
+        df = df.loc[order, order]
+        df.to_csv(os.path.join(save_dir, f"net_advantage_extreme_evaluators_{evaluator}.csv"))
+        mats.append(df.T)                            # shown transposed, as in Figure 4b
+        rows.append(df.T.mean(axis=1, skipna=True).values)
 
-        delta = np.full((N, N), np.nan)
-        for i in range(N):
-            for j in range(N):
-                delta[i, j] = raw[i, j] - raw[i, i]   # subtract unrounded rates
+    vmax = np.ceil(np.nanmax([np.nanmax(np.abs(m.values)) for m in mats]))
+    bar_lim = np.nanmax(np.abs(np.concatenate(rows))) * 1.6
 
-        masked_delta = delta.copy()
-        np.fill_diagonal(masked_delta, np.nan)
-        row_means, col_means, overall_mean = (np.nanmean(masked_delta, axis=1),
-                                               np.nanmean(masked_delta, axis=0),
-                                               np.nanmean(masked_delta))
-        ext_delta = np.zeros((N + 1, N + 1))
-        ext_delta[:N, :N], ext_delta[:N, N], ext_delta[N, :N], ext_delta[N, N] = \
-            delta, row_means, col_means, overall_mean
+    def tint(vals):
+        m = np.max(np.abs(vals)) * 1.1
+        return [ps.GAP_CMAP(0.5 + 0.5 * v / m) for v in vals]
 
-        annot = []
-        for i in range(N + 1):
-            row = []
-            for j in range(N + 1):
-                val, sign = ext_delta[i, j], "+" if ext_delta[i, j] > 0 else ""
-                row.append("—" if (i == j and i < N) else f"{sign}{val:.1f}")
-            annot.append(row)
-        annot = np.array(annot)
-
-        ext_writers = writers + ["Avg."]
-        sorted_models = pd.Series(col_means, index=writers).sort_values(ascending=False).index.tolist()
-        df_m = pd.DataFrame(ext_delta, index=ext_writers, columns=ext_writers)
-        df_m = df_m.loc[sorted_models + ["Avg."], sorted_models + ["Avg."]]
-        old_idx = {w: i for i, w in enumerate(writers)}
-        order = [old_idx[w] for w in sorted_models] + [N]
-        annot = annot[np.ix_(order, order)]
-        df_m_plot = df_m.rename(index=MODEL_DISPLAY, columns=MODEL_DISPLAY)
-        df_m.to_csv(os.path.join(save_dir, f"net_advantage_extreme_evaluators_{evaluator}.csv"))
-
-        sns.heatmap(df_m_plot, annot=annot, fmt="", cmap=ps.DIVERGING_CMAP_HARM, center=0,
-                    linewidths=0.5, linecolor="gray", cbar=False,
-                    annot_kws={"size": annot_pt}, ax=ax)
-        for text in ax.texts:
-            if text.get_text() == "—":
-                text.set_color("grey")
-        ax.axhline(N, color="black", linewidth=2)
-        ax.axvline(N, color="black", linewidth=2)
-        ax.set_title(f"Evaluator: {MODEL_DISPLAY.get(evaluator, evaluator)}", fontsize=title_pt, fontweight="bold", pad=10)
-        ax.set_ylabel("High-Fit Group — Writer Model", fontsize=label_pt)
-        ax.set_xlabel("Moderate-Fit Group — Writer Model", fontsize=label_pt, labelpad=12)
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right", fontsize=tick_pt)
-        for tick in ax.get_xticklabels():
-            tick.set_color(DISPLAY_COLORS.get(tick.get_text(), "black"))
-        ytick_info = [(t.get_text(), DISPLAY_COLORS.get(t.get_text(), "black")) for t in ax.get_yticklabels()]
-        ax.set_yticklabels(["Avg." if name == "Avg." else "■" for name, _ in ytick_info], rotation=0)
-        for tick, (name, color) in zip(ax.get_yticklabels(), ytick_info):
-            tick.set_color("black" if tick.get_text() == "Avg." else color)
-            tick.set_fontsize(tick_pt if tick.get_text() == "Avg." else square_pt)
-
-        net_vmax = np.nanmax(np.abs(ext_delta[:-1, :-1]))
-        sm = cm.ScalarMappable(cmap=ps.DIVERGING_CMAP_HARM, norm=mcolors.Normalize(vmin=-net_vmax, vmax=net_vmax))
-        sm.set_array([])
-        cb = fig.colorbar(sm, ax=ax, shrink=0.8)
-        cb.set_label("Net Advantage over Control, %", fontsize=label_pt)
-        cb.ax.tick_params(labelsize=tick_pt)
-
-    fig.suptitle("Net Competitive Advantage for Individual Evaluators",
-                 fontsize=headline_pt, fontweight="bold", y=1.02)
-    plt.savefig(os.path.join(save_dir, fname), dpi=150, bbox_inches="tight")
-    plt.close()
+    fig = plt.figure(figsize=(ps.FULL_WIDTH, 2.75))
+    gs = fig.add_gridspec(1, 5, width_ratios=[11, 3.2, 7.2, 11, 3.2],
+                          wspace=0.06, left=0.115, right=0.985, top=0.92, bottom=0.25)
+    for k, (evaluator, mat, avg) in enumerate(zip(evaluators, mats, rows)):
+        ax = fig.add_subplot(gs[0, 3 * k]); axr = fig.add_subplot(gs[0, 3 * k + 1])
+        ps.tile_matrix(ax, mat, ps.GAP_CMAP, -vmax, vmax, fmt="{:+.1f}",
+                       self_outline=False, row_colors=WRITER_COLORS, col_colors=WRITER_COLORS,
+                       row_names=MODEL_DISPLAY, col_names=MODEL_DISPLAY, fs=3.9, dark_at=0.5)
+        ps.side_bars(axr, avg, tint(avg), xlim=(-bar_lim, bar_lim), fmt="{:+.1f}", label="Avg.")
+        ax.set_xlabel("Writer of high-fit candidates")
+        ax.set_ylabel("Writer of moderate-fit candidates" if k == 0 else "")
+        ax.set_title(f"Evaluator: {MODEL_DISPLAY.get(evaluator, evaluator)} (pp)", loc="left", x=0)
+        ps.panel_label(ax, "ab"[k], x=-0.4, y=1.0)
+    fig.savefig(os.path.join(save_dir, fname))
+    plt.close(fig)
     print(f"  Saved {fname}")
 
 
