@@ -125,15 +125,16 @@ def bars(xb, y0, dy, vals, s, h=1.2, lab=True, alpha=75, dx=0.0):
 FIND = [("Writer-preference hierarchy", "small local models rank last", "Fig. 2"),
         ("Evaluator bias", "evaluators differ in bias added", "Fig. 3"),
         ("Hiring consequences", "$\\approx$2 of 25 high-fit displaced", "Fig. 4"),
-        ("Style explains it", "a few writing features", "Fig. 5")]
-def findings_col(x0=117, top=-21.5, step=9.6):
+        ("Style explains it", "a few writing features", "Fig. 5"),
+        ("Self-preference", "weaker, not tied to being liked", "Fig. 6")]
+def findings_col(x0=117, top=-20.2, step=7.8, h=7.0):
     out = ""
     for k, (t, a, f) in enumerate(FIND):
         y = top - k * step
-        out += (f"\\node[finding, minimum width=49mm, minimum height=8.4mm] at ({x0+26.5},{y:.2f}) {{}};\n"
-                f"\\node[anchor=west, font=\\fontsize{{6pt}}{{7pt}}\\selectfont\\bfseries] at ({x0+4},{y+1.8:.2f}) {{{t}}};\n"
-                f"\\node[figtag, anchor=east] at ({x0+49.5},{y+1.8:.2f}) {{{f}}};\n"
-                f"\\node[anchor=west, small] at ({x0+4},{y-1.9:.2f}) {{{a}}};\n")
+        out += (f"\\node[finding, minimum width=49mm, minimum height={h}mm] at ({x0+26.5},{y:.2f}) {{}};\n"
+                f"\\node[anchor=west, font=\\fontsize{{6pt}}{{7pt}}\\selectfont\\bfseries] at ({x0+4},{y+1.5:.2f}) {{{t}}};\n"
+                f"\\node[figtag, anchor=east] at ({x0+49.5},{y+1.5:.2f}) {{{f}}};\n"
+                f"\\node[anchor=west, small] at ({x0+4},{y-1.6:.2f}) {{{a}}};\n")
     return out
 def findings_row(y, x0=0, W=170, gap=2):
     out = ""; w = (W - 3 * gap) / 4
@@ -158,19 +159,36 @@ b += "\\node[tiny, align=center] at (10,-51) {$\\times$ 500 candidates\\\\(10 jo
 b += letters(-9.5, 4.25)
 b += "\\draw[arr] (47.5,-31) -- (51.9,-31);\n\\draw[arr] (70.1,-31) -- (73.5,-31);\n" + screener(61, -31)
 xb, s = 94, 23
-b += f"\\fill[penbg] ({xb-0.62*s},-6.8) rectangle ({xb},-54.2);\n\\fill[favbg] ({xb},-6.8) rectangle ({xb+0.68*s},-54.2);\n"
+# Shaded panel starts just below the header rule (y=-6.9) so it does not cross it,
+# and extends left far enough to contain the most negative dot (Llama row).
+vmin = min(cl[w].drop("Avg.").min() for w in order)
+left = min(-0.62, vmin - 0.06)
+b += f"\\fill[penbg] ({xb+left*s:.2f},-7.6) rectangle ({xb},-54.2);\n\\fill[favbg] ({xb},-7.6) rectangle ({xb+0.68*s},-54.2);\n"
 for k, w in enumerate(order):
     y = -9.5 - k * 4.25; v = cl[w].drop("Avg."); 
     b += f"\\draw[black!25, line width=1.2pt, line cap=round] ({xb+v.min()*s:.2f},{y:.2f}) -- ({xb+v.max()*s:.2f},{y:.2f});\n"
     for e, ve in v.items():
         if e == w:
-            b += f"\\draw[{TEX[w]}, line width=0.7pt, fill=white] ({xb+ve*s:.2f},{y:.2f}) circle (1.05);\n"
+            # self-evaluation: filled square in the writer colour with a dark edge, as in Fig. 2
+            b += f"\\filldraw[fill={TEX[w]}, draw=ink, line width=0.35pt] ({xb+ve*s-0.95:.2f},{y-0.95:.2f}) rectangle ({xb+ve*s+0.95:.2f},{y+0.95:.2f});\n"
         else:
             b += f"\\fill[{TEX[e]}] ({xb+ve*s:.2f},{y:.2f}) circle (0.62);\n"
     b += f"\\fill[ink] ({xb+avg_cl[w]*s-0.3:.2f},{y+1.5:.2f}) rectangle ({xb+avg_cl[w]*s+0.3:.2f},{y-1.5:.2f});\n"
-b += f"\\draw[ink2, line width=0.4pt] ({xb},-6.8) -- ({xb},-54.2);\n"
-b += f"\\node[tiny] at ({xb},-56.8) {{score gap (0--10 scale), cover letter only}};\n"
-b += f"\\node[tiny, anchor=west] at ({xb-0.6*s},-4.6) {{\\textcolor{{penc}}{{$\\leftarrow$ penalised}}}};\n\\node[tiny, anchor=east] at ({xb+0.66*s},-4.6) {{\\textcolor{{fav}}{{favoured $\\rightarrow$}}}};\n"
+b += f"\\draw[ink2, line width=0.4pt] ({xb},-7.6) -- ({xb},-54.2);\n"
+# x axis under the dot plot: ticks every 0.5 on the 1-10 score scale
+ax_y = -54.2
+right = 0.68
+b += f"\\draw[ink2, line width=0.4pt] ({xb+left*s:.2f},{ax_y}) -- ({xb+right*s:.2f},{ax_y});\n"
+for t in [-0.5, 0.0, 0.5]:
+    if left <= t <= right:
+        lab = "0" if t == 0 else f"{t:+.1f}".replace("-", "$-$")
+        b += f"\\draw[ink2, line width=0.4pt] ({xb+t*s:.2f},{ax_y}) -- ({xb+t*s:.2f},{ax_y-0.7});\n"
+        b += f"\\node[tiny, anchor=north] at ({xb+t*s:.2f},{ax_y-0.8}) {{{lab}}};\n"
+b += f"\\node[tiny] at ({xb},-58.4) {{score gap (1--10 scale), cover letter only}};\n"
+# direction labels inside the plot, in the corners the dots leave free
+# (top rows sit on the favoured side, bottom rows on the penalised side)
+b += f"\\node[tiny, anchor=north west] at ({xb+left*s+0.5:.2f},-8.0) {{\\textcolor{{penc}}{{$\\leftarrow$ penalised}}}};\n"
+b += f"\\node[tiny, anchor=south east] at ({xb+right*s-0.5:.2f},{ax_y+0.5}) {{\\textcolor{{fav}}{{favoured $\\rightarrow$}}}};\n"
 b += "\\node[num] at (121.8,-4.2) {3};\n\\node[head] at (124.6,-4.2) {Analysis};\n"
 b += "\\draw[rule, line width=0.6pt] (120,-6.9) -- (167,-6.9);\n"
 b += "\\node[small, align=left, anchor=north west, text=ink] at (120,-9.2) {11 writers $\\cdot$ 9 evaluators $\\cdot$ 3 conditions $\\cdot$ 4 runs\\\\\\textbf{414,000 evaluations}};\n"
