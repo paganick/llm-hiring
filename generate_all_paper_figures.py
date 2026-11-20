@@ -66,6 +66,8 @@ def find_needed_figures():
 # Order matters: later scripts import names from earlier ones.
 SCRIPTS = [
     ("aggregate_plots.py", []),
+    ("make_fig_agreement.py", []),        # reads CSVs written by aggregate_plots.py
+    ("make_fig_selfpref_summary.py", []), # reads CSVs written by the scripts below; rerun last if needed
     ("plot_feature_regression.py", []),
     ("plot_nested_model_decomposition.py", []),
     ("plot_model_explainability.py", []),
