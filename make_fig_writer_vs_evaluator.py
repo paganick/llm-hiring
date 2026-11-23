@@ -26,7 +26,10 @@ DISPLAY = {
 }
 COLOR = {v: ps.MODEL_SHADES[k] for k, v in DISPLAY.items()}
 
-# name: (x feature, y feature, columns in the CSVs, diagonal on the evaluator panel)
+# name: (x feature, y feature, columns in the CSVs, centre the evaluator panel)
+# cosine_cvcl: panel b is centred on the average evaluator, like panel a on the average
+# writer, so the two panels share quadrants (same quadrant = a model rewards, more than
+# its peers, what its own letters do more than other writers' letters).
 PAIRS = {
     "cosine_cvcl": ("similarity to job ad", "similarity to CV",
                     ("echo_job", "echo_cv"), ("pref_job", "pref_cv"), True),
@@ -67,11 +70,21 @@ def panel(ax, df, xcol, ycol, xlabel, ylabel, title, letter, diagonal=False):
 for name, (fx, fy, wcols, ecols, diag) in PAIRS.items():
     w = pd.read_csv(os.path.join(DATA, f"writer_vs_evaluator_{name}_writer.csv"), index_col=0)
     e = pd.read_csv(os.path.join(DATA, f"writer_vs_evaluator_{name}_evaluator.csv"), index_col=0)
+    if diag:   # centre on the average evaluator
+        e[list(ecols)] = e[list(ecols)] - e[list(ecols)].mean()
     fig, axes = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 2.7), gridspec_kw={"wspace": 0.32})
-    panel(axes[0], w, *wcols, f"{fx[0].upper() + fx[1:]}, writer minus average",
-          f"{fy[0].upper() + fy[1:]}, writer minus average", "As a writer", "a")
-    panel(axes[1], e, *ecols, f"Reward for {fx} (Ridge coef.)",
-          f"Reward for {fy} (Ridge coef.)", "As an evaluator", "b", diagonal=diag)
+    if diag:
+        panel(axes[0], w, *wcols, "Job-ad similarity\n(writer − avg.)",
+              "CV similarity\n(writer − avg.)", "As a writer", "a")
+    else:
+        panel(axes[0], w, *wcols, f"{fx[0].upper() + fx[1:]}, writer minus average",
+              f"{fy[0].upper() + fy[1:]}, writer minus average", "As a writer", "a")
+    if diag:   # shorter labels: both panels centred, same structure
+        panel(axes[1], e, *ecols, "Reward for job-ad similarity\n(evaluator − avg.)",
+              "Reward for CV similarity\n(evaluator − avg.)", "As an evaluator", "b")
+    else:
+        panel(axes[1], e, *ecols, f"Reward for {fx} (Ridge coef.)",
+              f"Reward for {fy} (Ridge coef.)", "As an evaluator", "b")
     fig.savefig(os.path.join(DATA, f"wve_{name}.png"))
     plt.close(fig)
     print("saved", f"wve_{name}.png")
