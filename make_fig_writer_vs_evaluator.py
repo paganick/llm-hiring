@@ -88,3 +88,46 @@ for name, (fx, fy, wcols, ecols, diag) in PAIRS.items():
     fig.savefig(os.path.join(DATA, f"wve_{name}.png"))
     plt.close(fig)
     print("saved", f"wve_{name}.png")
+
+
+# ── Combined trade-off figure: 2 rows (writer, evaluator) x 3 columns (trade-offs) ──
+TRADEOFFS = [  # (csv name, column title, x label, y label)
+    ("flesch_wordlen", "Readability vs word length", "Flesch Reading Ease", "Average word length"),
+    ("dominance_arousal", "Dominance vs arousal", "VAD dominance", "VAD arousal"),
+    ("joy_neutral", "Joy vs Neutral", "Joy", "Neutral"),
+]
+
+
+def small_panel(ax, df, xlabel, ylabel):
+    """Like panel(), at a third of the page width: zero lines, smaller labels."""
+    ax.axhline(0, color=ps.INK_MUTED, lw=0.5, ls=(0, (2, 2)), zorder=1)
+    ax.axvline(0, color=ps.INK_MUTED, lw=0.5, ls=(0, (2, 2)), zorder=1)
+    for m, r in df.iterrows():
+        ax.scatter(r["x"], r["y"], s=11, color=COLOR.get(m, ps.INK_MUTED), ec="white", lw=0.3, zorder=3)
+    for col, setter in (("x", ax.set_xlim), ("y", ax.set_ylim)):
+        lo, hi = df[col].min(), df[col].max()
+        pad = (hi - lo) * 0.18
+        setter(min(lo - pad, -pad * 0.3), max(hi + pad, pad * 0.3))
+    texts = [ax.text(r["x"], r["y"], m, fontsize=ps.FS_TINY - 0.6, color=COLOR.get(m, ps.INK))
+             for m, r in df.iterrows()]
+    adjust_text(texts, x=df["x"].values, y=df["y"].values, ax=ax,
+                expand=(1.2, 1.5), arrowprops=dict(arrowstyle="-", color=ps.INK_MUTED, lw=0.25))
+    ax.set_xlabel(xlabel, fontsize=ps.FS_SMALL); ax.set_ylabel(ylabel, fontsize=ps.FS_SMALL)
+    ax.tick_params(labelsize=ps.FS_TINY)
+
+
+fig, axes = plt.subplots(2, 3, figsize=(ps.FULL_WIDTH, 4.6),
+                         gridspec_kw={"wspace": 0.42, "hspace": 0.42})
+for j, (name, title, fx, fy) in enumerate(TRADEOFFS):
+    w = pd.read_csv(os.path.join(DATA, f"writer_vs_evaluator_{name}_writer.csv"), index_col=0)
+    e = pd.read_csv(os.path.join(DATA, f"writer_vs_evaluator_{name}_evaluator.csv"), index_col=0)
+    small_panel(axes[0, j], w, f"{fx} (writer − avg.)", f"{fy} (writer − avg.)")
+    small_panel(axes[1, j], e, f"Reward for {fx}", f"Reward for {fy}")
+    axes[0, j].set_title(title, loc="left", x=0, fontsize=ps.FS_BASE)
+    ps.panel_label(axes[0, j], "abc"[j], x=-0.3, y=1.02)
+    ps.panel_label(axes[1, j], "def"[j], x=-0.3, y=1.02)
+fig.text(0.005, 0.73, "As a writer", rotation=90, va="center", fontsize=ps.FS_BASE, fontweight="bold")
+fig.text(0.005, 0.27, "As an evaluator", rotation=90, va="center", fontsize=ps.FS_BASE, fontweight="bold")
+fig.savefig(os.path.join(DATA, "wve_tradeoffs.png"))
+plt.close(fig)
+print("saved wve_tradeoffs.png")
