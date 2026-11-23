@@ -77,6 +77,7 @@ SCRIPTS = [
     ("make_fig_selfpref_summary.py", []),     # reads CSVs from aggregate_plots and plot_feature_regression
     ("plot_cl_features.py", []),
     ("plot_cl_variance.py", []),
+    ("make_fig_tier_effect.py", []),          # reads the CSV written by plot_cl_variance.py
 ]
 
 # Where each script's outputs land, relative to PROJECT_ROOT.
