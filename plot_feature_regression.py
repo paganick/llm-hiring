@@ -1277,7 +1277,8 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
 
         rows.append({"feature": f, "label": FEATURE_LABELS[f],
                      "vals": vals, "mean": float(np.mean(list(vals.values()))),
-                     "unanimous": unanimous, "writer_z": writer_z})
+                     "unanimous": unanimous, "writer_z": writer_z,
+                     "raw_mean": feat_mean, "raw_sd": feat_std})
 
     # Ascending, plotted directly (no reversal): row i=0 sits at the bottom
     # of the axes and the largest mean at the top, so the plot reads like a
@@ -1294,9 +1295,11 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
          for i, r in enumerate(rows) for w, (z, zerr) in r["writer_z"].items()]), out_path, "writers")
 
     n = len(rows)
-    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(ps.FULL_WIDTH, 0.14 * n + 1.0), sharey=True,
-                                  gridspec_kw=dict(wspace=0.06, width_ratios=[1.15, 1],
-                                                   left=0.15, right=0.985, top=0.93, bottom=0.2))
+    # middle column: each feature's raw mean and SD over all letters, i.e. what one
+    # standard deviation means in the feature's own units (both panels are per SD)
+    fig, (ax, axm, ax2) = plt.subplots(1, 3, figsize=(ps.FULL_WIDTH, 0.14 * n + 1.0), sharey=True,
+                                       gridspec_kw=dict(wspace=0.04, width_ratios=[1.15, 0.3, 1],
+                                                        left=0.15, right=0.985, top=0.93, bottom=0.2))
     rng = np.random.default_rng(1)   # small vertical jitter, fixed for reproducibility
     for i, r in enumerate(rows):
         cat_col = _feature_name_color(r["feature"])
@@ -1318,6 +1321,22 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
         ax2.plot([zv.min(), zv.max()], [i, i], color="#c8c8c8", lw=1.6, solid_capstyle="round", zorder=2)
         for w, zz in z.items():
             ax2.scatter(zz, i, s=11, fc=WRITER_COLORS.get(w, "grey"), ec="white", lw=0.3, zorder=3)
+    def _fmt_pair(m, sd):   # SD to two significant figures, mean to the same decimal place
+        d = max(0, 1 - int(np.floor(np.log10(sd)))) if sd > 0 else 2
+        return f"{m:.{d}f} \u00b1 {sd:.{d}f}"
+    for i, r in enumerate(rows):
+        if r["unanimous"]:
+            axm.axhspan(i - 0.5, i + 0.5, color=ps.FAV_BG if r["mean"] >= 0 else ps.PEN_BG, lw=0, zorder=0)
+        axm.text(0.5, i, _fmt_pair(r["raw_mean"], r["raw_sd"]), ha="center", va="center",
+                 fontsize=ps.FS_TINY, color=ps.INK_2)
+    axm.set_xlim(0, 1)
+    axm.set_xticks([])
+    for side in ("left", "top", "right", "bottom"):
+        axm.spines[side].set_visible(False)
+    axm.tick_params(axis="y", length=0)
+    axm.set_title("Mean \u00b1 SD", fontsize=ps.FS_TINY, color=ps.INK_2, x=0.42)
+    _save_plot_data(pd.DataFrame([{"feature": r["feature"], "mean": r["raw_mean"], "sd": r["raw_sd"]}
+                                  for r in rows]), out_path, "raw")
     for a_ in (ax, ax2):
         a_.axvline(0, color=ps.INK_2, lw=0.5, zorder=1)
         for side in ("left", "top", "right"):
@@ -1333,7 +1352,7 @@ def plot_common_preference_summary_ranked(coef_df, feat_cols, feat_df, out_path,
     ax.set_title("How much each evaluator rewards each feature", loc="left", x=0)
     ax2.set_title("How much each writer uses it", loc="left", x=0)
     ps.panel_label(ax, "a", x=-0.36, y=1.0)
-    ps.panel_label(ax2, "b", x=-0.03, y=1.0)
+    ps.panel_label(ax2, "b", x=-0.035, y=1.0)
 
     cats = []
     for r in rows:
