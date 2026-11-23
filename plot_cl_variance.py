@@ -467,7 +467,7 @@ def plot_embedding_homogeneity(homogeneity: pd.DataFrame):
     label_pt  = print_pt(AXIS_LABEL_PT, canvas_w)
     annot_pt  = print_pt(6.5, canvas_w)
     legend_pt = print_pt(LEGEND_PT_TARGET, canvas_w)
-    fig, ax = plt.subplots(figsize=(canvas_w, 6))
+    fig, ax = plt.subplots(figsize=(canvas_w, 4))
 
     n       = len(WRITERS)
     bw      = 0.35
@@ -502,7 +502,7 @@ def plot_embedding_homogeneity(homogeneity: pd.DataFrame):
             mpatches.Patch(facecolor="grey", alpha=0.4, hatch="///", edgecolor="grey",
                            label="Different jobs"),
         ],
-        fontsize=legend_pt, frameon=True, loc="lower right",
+        fontsize=legend_pt, frameon=False, ncol=2, loc="lower right", bbox_to_anchor=(1.0, 1.0),
     )
     ax.set_ylabel("Mean pairwise cosine similarity", fontsize=label_pt)
     ax.tick_params(axis="y", labelsize=tick_pt)   # rcParams are print-size; this canvas is larger
