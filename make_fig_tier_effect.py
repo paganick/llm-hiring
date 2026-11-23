@@ -43,8 +43,8 @@ def main():
     fcol = {f: FEATURE_CATEGORY_COLORS[g] for g, fs in GROUPS.items() for f in fs}
 
     # features along x, d along y: a short full-width strip
-    fig, ax = plt.subplots(figsize=(ps.FULL_WIDTH, 2.4))
-    fig.subplots_adjust(left=0.08, right=0.995, top=0.97, bottom=0.37)
+    fig, ax = plt.subplots(figsize=(ps.FULL_WIDTH, 2.1))
+    fig.subplots_adjust(left=0.08, right=0.995, top=0.97, bottom=0.42)
     for i, f in enumerate(feats):
         m = d[f].mean()
         if abs(m) >= WASH_AT:
