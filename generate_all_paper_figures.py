@@ -3,22 +3,22 @@ generate_all_paper_figures.py — single entry point that regenerates every
 figure referenced in paper/paper.tex, then reports how each regenerated file
 compares to what's currently embedded in paper/figures/.
 
-Why this exists: the figures are produced by six different scripts that
-accumulated over the project's life (aggregate_plots.py plus five
-specialised plot_*.py scripts added later for the feature/style analyses).
-Nothing previously tied them together, so paper/figures/ could silently go
-stale relative to the scripts/data that actually produce it (this happened
-to win_net_combined.png — a June figure survived in the paper for months
-after the writer roster was extended from 8 to 11 models). This script is
-the fix: run it, read the report, and any figure that's stale shows up as
-DIFFERS or MISSING instead of being discovered by hand months later.
+Why this exists: the figures come from ten scripts (six analysis scripts that
+compute the results and save them as CSVs, plus four make_fig_*.py scripts
+that redraw some of those CSVs in the paper's style; see SCRIPTS below and
+PLOTTING.md for which script draws which figure). Nothing else ties them
+together, so paper/figures/ could silently go stale; run this, read the
+report, and any stale figure shows up as DIFFERS or MISSING.
 
-Covers all figures except pipeline_diagram.pdf, which is not code-generated
-(hand-drawn tikz in pipeline_diagram.tex, compiled and cropped manually —
-see the note at the top of paper.tex).
+Covers all figures except Figure 1 (pipeline_diagram.pdf), which
+make_fig1.py writes as TikZ source and xelatex compiles (see make_fig1.py).
+
+Three figures place labels with adjustText, which jitters them slightly from
+run to run (wve_tradeoffs, wve_cosine_cvcl, self_pref_summary_cvcl): they can
+show up as DIFFERS even when the numbers behind them are identical.
 
 What belongs in paper/figures/ is defined ENTIRELY by paper/paper.tex's own
-\includegraphics calls, not by whatever already happens to be sitting in
+\\includegraphics calls, not by whatever already happens to be sitting in
 that directory -- see report_and_sync()'s docstring for why that distinction
 matters.
 
@@ -30,10 +30,8 @@ Usage:
                                                          # any paper/figures/ file the
                                                          # paper doesn't cite
 
-Run with the same interpreter used for the rest of this project's analysis
-(needs pandas, numpy, matplotlib, seaborn, scipy, scikit-learn — e.g. the
-`llm-bias-analysis` conda env: `conda run -n llm-bias-analysis python
-generate_all_paper_figures.py`).
+Run in the conda environment defined by environment.yml (`llm-hiring`):
+`conda run -n llm-hiring python generate_all_paper_figures.py`.
 """
 import filecmp
 import os

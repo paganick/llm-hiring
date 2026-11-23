@@ -35,9 +35,13 @@ against what the paper embeds; `--sync` copies changed figures in.
 | `extract_cl_features.py` | Writing-style features of every letter → `output_eval/cl_features.parquet` |
 | `aggregate_plots.py` | Score-based analyses: preference gap, rank-gap bias, win rates, displacement, calibration |
 | `plot_feature_regression.py` | Ridge regression of scores on writing-style features |
-| `plot_nested_model_decomposition.py`, `plot_model_explainability.py` | Shapley R² decompositions |
+| `plot_nested_model_decomposition.py` | Nested R² decomposition (job, substance, evaluator, then writer identity or text features) |
+| `plot_model_explainability.py` | Writer style vs. evaluator reward for pairs of features |
 | `plot_cl_features.py`, `plot_cl_variance.py` | Writer text-feature descriptives |
-| `generate_all_paper_figures.py` | Runs the six analysis scripts in order (canonical entry point) |
+| `make_fig_*.py` | Redraw saved results in the paper's figure style (agreement heatmaps, Fig. 6 and its CV version, style-vs-taste scatters, tier effect) |
+| `make_fig1.py` | Fig. 1 (TikZ source, compiled with xelatex) |
+| `paper_style.py` | Shared figure style: fonts, model colours, tile matrices |
+| `generate_all_paper_figures.py` | Runs all figure scripts in order (canonical entry point); see `PLOTTING.md` for which script draws which figure |
 | `output_eval/` | Parquet caches: all 414,000 scores (`master_df`), displacement input (`competitive_df`), letter features, CV–job similarity |
 
 ## Data
