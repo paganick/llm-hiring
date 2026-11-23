@@ -1857,10 +1857,12 @@ def plot_intra_run_variance(tier_df, save_dir):
     x      = np.arange(n_ev)
 
     fig, ax = plt.subplots(figsize=(14, 6), constrained_layout=True)
+    table = {}   # the numbers of the paper's Table A1 (mean intra-run SD, evaluator x condition)
     for ci, ((etype, label), color) in enumerate(zip(conditions, cond_colors)):
         sub  = tier_df[tier_df["Eval_Type"] == etype]
         stds = _run_std(sub, etype)
         means = [stds.xs(ev, level="Evaluator").mean() for ev in UNIQUE_EVALUATORS]
+        table[label] = dict(zip([MODEL_DISPLAY[ev] for ev in UNIQUE_EVALUATORS], means))
         offset = (ci - (n_cond - 1) / 2) * (bar_w + 0.03)
         bars = ax.bar(x + offset, means, width=bar_w, label=label,
                       color=color, alpha=0.85, edgecolor="white")
@@ -1884,7 +1886,8 @@ def plot_intra_run_variance(tier_df, save_dir):
     fig.savefig(os.path.join(save_dir, "intra_run_variance.png"),
                 dpi=150, bbox_inches="tight")
     plt.close()
-    print("  Saved intra_run_variance.png")
+    pd.DataFrame(table).T.to_csv(os.path.join(save_dir, "intra_run_variance.csv"))
+    print("  Saved intra_run_variance.png (+ .csv)")
 
     # --- Figure 2: heatmaps (evaluator × writer) for CL-only and CV+CL ---
     cl_conditions = [("cl_evaluations", "Cover Letter Only"),
